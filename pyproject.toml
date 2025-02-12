@@ -1,0 +1,14 @@
+[project]
+name = "gist-netatmo"
+version = "0.1.0"
+description = "An interface for working with netatmo sensors installed at TUD's Faculty of Architecture and the Built Environment."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "lnetatmo>=4.2.0",
+]
+
+[dependency-groups]
+dev = [
+    "ipykernel>=6.29.5",
+]
