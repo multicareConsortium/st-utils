@@ -15,6 +15,7 @@ def auth_check(authentication: ClientAuth) -> bool:
     Return True if successful.
     """
     try:
+        # lnetatmo will throw a TypeError
         authentication.renew_token()
     except TypeError as e:
         logging.critical(f"{e}")

@@ -11,3 +11,6 @@ wheels/
 
 # MacOS
 .DS_Store
+
+# Jupyter
+*.ipynb
