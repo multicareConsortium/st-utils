@@ -134,24 +134,29 @@ def check_existing_object(entity: "SensorThingsObject") -> bool:
             )["value"]:
                 return True
         case "Datastream":
-            response = filter_query(
+            # first, check if a datastream with a common name exists:
+            initial_response = filter_query(
                 entity="/Datastreams",
                 filter_string=f"name eq '{entity.name}'",
                 url=None,
             )["value"]
-            r_objects = response
-            if r_objects:
-                sensor_url = r_objects[0]["Sensor@iot.navigationLink"]
-                if CONTAINER_ENVIRONMENT:
-                    sensor_url = sensor_url.replace("localhost", "web")
-                # TODO: #10 Handling of
-                # localhost and web in containerized environments.
-                sensor_request = request.Request(url=sensor_url, method="GET")
-                with request.urlopen(sensor_request) as response:
-                    response = json.loads(response.read())
-                    response = response["name"]
-                    if response == entity.iot_links["sensors"][0].name:
-                        return True
+            # second, check if any of the datastreams with the same name also share a
+            # link with the sensor of the entity being checked by this function
+            if initial_response:
+                # If multiple sensors of the same type exist, `response` will be an
+                # array of datastreams. Iterate through all of responses:
+                for i in range(len(initial_response)):
+                    sensor_url = initial_response[i]["Sensor@iot.navigationLink"]
+                    if CONTAINER_ENVIRONMENT:
+                        sensor_url = sensor_url.replace("localhost", "web")
+                    # TODO: #10 Handling of
+                    # localhost and web in containerized environments.
+                    sensor_request = request.Request(url=sensor_url, method="GET")
+                    with request.urlopen(sensor_request) as response:
+                        response = json.loads(response.read())
+                        response = response["name"]
+                        if response == entity.iot_links["sensors"][0].name:
+                            return True
     return False
 
 
