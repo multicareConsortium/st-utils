@@ -13,46 +13,45 @@ async function fetchThings() {
         console.log('Things data:', thingData);
         
         if (thingData.value && thingData.value.length > 0) {
-            for (thing of thingData.value) {
+            for (const thing of thingData.value) {  // <== Use "const"
                 try {
-                    const locationResponse = await fetch(thing["Locations@iot.navigationLink"])
-                    const locationData = await locationResponse.json()
-                    const coordinates = locationData.value[0].location.coordinates
-                    const locationDescription = locationData.value[0].description
-                    // Create marker for this location
+                    const thingId = thing["@iot.id"];  // <== Capture the ID in a block-scoped variable
+            
+                    const locationResponse = await fetch(thing["Locations@iot.navigationLink"]);
+                    const locationData = await locationResponse.json();
+                    const coordinates = locationData.value[0].location.coordinates;
+                    const locationDescription = locationData.value[0].description;
+            
                     const marker = L.marker([coordinates[0], coordinates[1]]).addTo(map)
                         .bindPopup(createPopupContent(thing));
-                    
-                    // Store location data
-                    thingsData[thing["@iot.id"]] = { 
+            
+                    thingsData[thingId] = { 
                         marker, 
                         name: thing.name,
                         description: thing.description,
                         coordinates: [coordinates[0], coordinates[1]],
                         locationDescription: locationDescription
                     };
-                    
-                    // Also store by name for easier lookup
+            
                     thingsByName[thing.name] = {
                         marker,
-                        id: thing["@iot.id"],
+                        id: thingId,
                         coordinates: [coordinates[0], coordinates[1]],
                         description: thing.description,
                         locationDescription: locationDescription
                     };
-                    
-                    // Add click event to marker to highlight corresponding list item
+            
                     marker.on('click', () => {
                         map.closePopup();
                         marker.bindPopup(createPopupContent(thing)).openPopup();
                         highlightThingInList(thing.name);
-                        // Fetch datastreams when marker is clicked
-                        fetchDatastreamsForThing(thing["@iot.id"]);
+                        fetchDatastreamsForThing(thingId);  // <== Uses the correct ID now!
                     });
+            
                 } catch (error) {
                     console.error(`Error processing location ${thing["@iot.id"]}:`, error);
                 }
-            };
+            };            
             
             // Adjust map view to show all markers
             if (Object.keys(thingsData).length > 0) {
@@ -176,27 +175,27 @@ async function fetchDatastreamsForThing(thingId) {
         let allDatastreamsContent = `<h4>Available Datastreams:</h4>`;
         // Process each Datastream
         for (const datastream of datastreamData.value) {
-        // Add each datastream
-                allDatastreamsContent += `<div class="thing-name">${datastream.name}</div>`;
+            // Fetch each datastream one-by-one
+            await (async () => {
+                let datastreamContent = `<div class="thing-name">${datastream.name}</div>`;
                 const unitSymbol = datastream.unitOfMeasurement ? datastream.unitOfMeasurement.symbol : '';
-                const unitName = datastream.unitOfMeasurement ? datastream.unitOfMeasurement.name : '';
-                const resultsResposne = await fetch(datastream["Observations@iot.navigationLink"])
-                const results = await resultsResposne.json()
-                let latestResult, latestResultTime, latestResultValue
+                
                 try {
-                    latestResult = results.value.at(-1)
-                    latestResultValue = latestResult.result
-                    latestResultTime = latestResult.phenomenonTime
+                    const resultsResponse = await fetch(datastream["Observations@iot.navigationLink"]);
+                    const results = await resultsResponse.json();
+                    const latestResult = results.value.at(-1) || {};
+                    datastreamContent += `
+                        <div class="datastream-item">
+                            <span class="datastream-name">${latestResult.phenomenonTime || '-'}</span>
+                            <div>${latestResult.result || '-'} ${unitSymbol}</div>
+                        </div>`;
                 } catch (error) {
-                    latestResultValue = "-"
-                    latestResultTime = "-"
+                    datastreamContent += `<div class="datastream-item">Error loading data</div>`;
                 }
-                allDatastreamsContent += `
-                    <div class="datastream-item">
-                        <span class="datastream-name">${latestResultTime}</span>
-                        <div>${latestResultValue ||'' } ${unitSymbol}</div>
-                    </div>`;
-            };
+        
+                allDatastreamsContent += datastreamContent;
+            })();
+        }
             updatePopupWithDatastreams(thingId, allDatastreamsContent);
     } catch (error) {
         console.error(`Error fetching datastreams for location ${thingId}:`, error);
@@ -209,16 +208,16 @@ function updatePopupWithDatastreams(locationId, content) {
     const locationInfo = thingsData[locationId];
     if (locationInfo) {
         const popup = locationInfo.marker.getPopup();
-        const popupContent = popup.getContent();
-        
-        // Replace the loading placeholder with actual content
-        const updatedContent = popupContent.replace(
-            new RegExp(`<div id="datastreams-${locationId}" class="popup-section">.*?</div>`, 's'),
-            `<div id="datastreams-${locationId}" class="popup-section">${content}</div>`
-        );
-        
-        popup.setContent(updatedContent);
-        
+        let tempDiv = document.createElement('div');
+        tempDiv.innerHTML = popup.getContent();
+
+        const datastreamDiv = tempDiv.querySelector(`#datastreams-${locationId}`);
+        if (datastreamDiv) {
+            datastreamDiv.innerHTML = content;  // Directly replace content
+        }
+
+        popup.setContent(tempDiv.innerHTML);
+
         // If the popup is already open, update it
         if (locationInfo.marker.isPopupOpen()) {
             locationInfo.marker.openPopup();
