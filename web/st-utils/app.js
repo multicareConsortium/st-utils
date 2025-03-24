@@ -15,9 +15,12 @@ async function fetchThings() {
         if (thingData.value && thingData.value.length > 0) {
             for (const thing of thingData.value) {  // <== Use "const"
                 try {
+                    const currentProtocol = window.location.protocol;
                     const thingId = thing["@iot.id"];  // <== Capture the ID in a block-scoped variable
-            
-                    const locationResponse = await fetch(thing["Locations@iot.navigationLink"]);
+                    const locationUrl = thing["Locations@iot.navigationLink"]
+                    const secureUrl = locationUrl.replace(/^http:/, currentProtocol);
+                    console.log(secureUrl)
+                    const locationResponse = await fetch(secureUrl);
                     const locationData = await locationResponse.json();
                     const coordinates = locationData.value[0].location.coordinates;
                     const locationDescription = locationData.value[0].description;
@@ -161,6 +164,7 @@ async function fetchDatastreamsForThing(thingId) {
     updateStatus(`Fetching Datastreams for Thing ID: ${thingId}...`);
     try {
         // First, fetch the Datastreams associated with this Thing
+
         const datastreamResponse = await fetch(`../FROST-Server/v1.1/Things(${thingId})/Datastreams`);
         
         if (!datastreamResponse.ok) {
@@ -181,9 +185,12 @@ async function fetchDatastreamsForThing(thingId) {
                 const unitSymbol = datastream.unitOfMeasurement ? datastream.unitOfMeasurement.symbol : '';
                 
                 try {
-                    const resultsResponse = await fetch(datastream["Observations@iot.navigationLink"]);
+                    const currentProtocol = window.location.protocol;
+                    const ObservationUrl = datastream["Observations@iot.navigationLink"] + '?$top=1&$orderby=phenomenonTime%20desc'
+                    const secureObsrvationUrl = ObservationUrl.replace(/^http:/, currentProtocol);
+                    const resultsResponse = await fetch(secureObsrvationUrl);
                     const results = await resultsResponse.json();
-                    const latestResult = results.value.at(-1) || {};
+                    const latestResult = results.value.at(0) || {};
                     datastreamContent += `
                         <div class="datastream-item">
                             <span class="datastream-name">${latestResult.phenomenonTime || '-'}</span>
