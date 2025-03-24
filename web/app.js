@@ -186,11 +186,11 @@ async function fetchDatastreamsForThing(thingId) {
                 
                 try {
                     const currentProtocol = window.location.protocol;
-                    const ObservationUrl = datastream["Observations@iot.navigationLink"]
+                    const ObservationUrl = datastream["Observations@iot.navigationLink"] + '?$top=1&$orderby=phenomenonTime%20desc'
                     const secureObsrvationUrl = ObservationUrl.replace(/^http:/, currentProtocol);
                     const resultsResponse = await fetch(secureObsrvationUrl);
                     const results = await resultsResponse.json();
-                    const latestResult = results.value.at(-1) || {};
+                    const latestResult = results.value.at(0) || {};
                     datastreamContent += `
                         <div class="datastream-item">
                             <span class="datastream-name">${latestResult.phenomenonTime || '-'}</span>
