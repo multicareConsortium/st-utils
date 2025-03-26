@@ -193,7 +193,11 @@ async function fetchDatastreamsForThing(thingId) {
                     const latestResult = results.value.at(0) || {};
                     datastreamContent += `
                         <div class="datastream-item">
-                            <span class="datastream-name">${latestResult.phenomenonTime || '-'}</span>
+                            <a href="timeseries/index.html?datastream=${datastream['@iot.id']}" class="datastream-link"
+                            target="_blank"
+                            rel="noopener noreferrer">
+                                Timeseries
+                            </a>
                             <div>${latestResult.result || '-'} ${unitSymbol}</div>
                         </div>`;
                 } catch (error) {
