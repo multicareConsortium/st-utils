@@ -11,6 +11,8 @@ services:
       - FROST_USER=sta-manager
       # - FROST_PASSWORD=ChangeMe
       - CONTAINER_ENVIRONMENT=true
+    volumes:
+      - python-app_credentials:/app/credentials
     command: ["uv", "run", "/app/src/sensorthings_utils/main.py"]
 
   web:
@@ -59,3 +61,4 @@ services:
 
 volumes:
   postgis_volume:
+  python-app_credentials:
