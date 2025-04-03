@@ -11,6 +11,23 @@ from lnetatmo import ClientAuth
 
 # directory setup
 ROOT_DIRECTORY = Path(__file__).parent.parent.parent
+
+
+def _make_credentials_dir() -> Path:
+    """
+    Create a credentials directory in the project root if is does not exist.
+
+    Credentials for all supported sensor types are *initially* stored in a .env file,
+    once they are parsed (by internal functions credentials), credenentials kept in the
+    .credentials directory.
+    """
+    credentials_directory = ROOT_DIRECTORY / ".credentials"
+    if not credentials_directory.exists():
+        os.mkdir(credentials_directory)
+    return credentials_directory
+
+
+CREDENTIALS_DIRECTORY = _make_credentials_dir()
 CONFIG_PATHS = ROOT_DIRECTORY / "sensor_configs"
 ENV_FILE = ROOT_DIRECTORY / ".env"
 

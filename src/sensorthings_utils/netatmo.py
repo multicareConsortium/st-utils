@@ -18,7 +18,7 @@ from pathlib import Path
 
 # internal
 from .sensor_things.core import Observation
-from .config import ROOT_DIRECTORY, FROST_ENDPOINT, FROST_CREDENTIALS
+from .config import CREDENTIALS_DIRECTORY, FROST_ENDPOINT, FROST_CREDENTIALS
 
 # type checking only
 if TYPE_CHECKING:
@@ -28,11 +28,14 @@ if TYPE_CHECKING:
 # environment setup
 dotenv.load_dotenv(ENV_FILE)
 CONTAINER_ENVIRONMENT = True if os.getenv("CONTAINER_ENVIRONMENT") else False
-
-NETATMO_CREDENTIALS_FILE = Path(ROOT_DIRECTORY / ".netatmo.credentials")
-if not NETATMO_CREDENTIALS_FILE.exists():
-    # Get credentials from the .env, but create a .netatmo.credentials file; the
-    # credentials then become redundant.
+NETATMO_CREDENTIALS_FILE = Path(CREDENTIALS_DIRECTORY / ".netatmo.credentials")
+# create the .netatmo.credentials (from .env) if file doesn't exist, or, if
+# the .env is newer than the .netatmo credentials.
+if not NETATMO_CREDENTIALS_FILE.exists() or os.path.getmtime(
+    ENV_FILE
+) > os.path.getmtime(NETATMO_CREDENTIALS_FILE):
+    if not ENV_FILE.exists():
+        raise FileNotFoundError(".netatmo.credentials nor .env file found.")
     NETATMO_CLIENT_ID = os.getenv("NETATMO_CLIENT_ID")
     NETATMO_CLIENT_SECRET = os.getenv("NETATMO_CLIENT_SECRET")
     NETATMO_REFRESH_TOKEN = os.getenv("NETATMO_REFRESH_TOKEN")
