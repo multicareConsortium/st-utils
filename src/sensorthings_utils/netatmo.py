@@ -26,16 +26,18 @@ if TYPE_CHECKING:
     from .sensor_things.extensions import SensorArrangement
 
 # environment setup
-dotenv.load_dotenv(ENV_FILE)
 CONTAINER_ENVIRONMENT = True if os.getenv("CONTAINER_ENVIRONMENT") else False
 NETATMO_CREDENTIALS_FILE = Path(CREDENTIALS_DIRECTORY / ".netatmo.credentials")
-# create the .netatmo.credentials (from .env) if file doesn't exist, or, if
-# the .env is newer than the .netatmo credentials.
-if not NETATMO_CREDENTIALS_FILE.exists() or os.path.getmtime(
-    ENV_FILE
-) > os.path.getmtime(NETATMO_CREDENTIALS_FILE):
-    if not ENV_FILE.exists():
-        raise FileNotFoundError(".netatmo.credentials nor .env file found.")
+
+
+def _write_netatmo_credentials() -> None:
+    """
+    Get Netatmo credentials from the environment and write them to a credentials file.
+    """
+    # Since the .env file is not baked into container image, only load the .env outside
+    # of a container environment.
+    if not CONTAINER_ENVIRONMENT:
+        dotenv.load_dotenv(ENV_FILE)
     NETATMO_CLIENT_ID = os.getenv("NETATMO_CLIENT_ID")
     NETATMO_CLIENT_SECRET = os.getenv("NETATMO_CLIENT_SECRET")
     NETATMO_REFRESH_TOKEN = os.getenv("NETATMO_REFRESH_TOKEN")
@@ -46,6 +48,15 @@ if not NETATMO_CREDENTIALS_FILE.exists() or os.path.getmtime(
     }
     with open(NETATMO_CREDENTIALS_FILE, "w") as f:
         json.dump(credentials, f, indent=4)
+    logging.info(f"Wrote Netatmo credentials to {NETATMO_CREDENTIALS_FILE}")
+    return None
+
+
+if not NETATMO_CREDENTIALS_FILE.exists():
+    _write_netatmo_credentials()
+if ENV_FILE.exists() and NETATMO_CREDENTIALS_FILE.exists():
+    if os.path.getmtime(ENV_FILE) > os.path.getmtime(NETATMO_CREDENTIALS_FILE):
+        _write_netatmo_credentials()
 
 AUTHENTICATION = ln.ClientAuth(credentialFile=NETATMO_CREDENTIALS_FILE)
 
