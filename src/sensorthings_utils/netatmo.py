@@ -13,7 +13,7 @@ import os
 # external
 import lnetatmo as ln
 import dotenv
-from .config import ENV_FILE
+from .config import ENV_FILE, MAX_CONNECTION_RETRIES
 from pathlib import Path
 
 # internal
@@ -94,7 +94,24 @@ def _extract(
     :rtype: Dict[str, Dict[str, str | int | float]]
     """
     data = {}  # type: Dict[str, Dict[str, str | int | float]]
-    weather_station_data = ln.WeatherStationData(AUTHENTICATION)
+    # network error handling:
+    for attempt in range(MAX_CONNECTION_RETRIES):
+        try:
+            weather_station_data = ln.WeatherStationData(AUTHENTICATION)
+            break
+        except TimeoutError as e:
+            if attempt == MAX_CONNECTION_RETRIES - 1:
+                logging.critical(
+                    f"Netatmo sensor link down {e} - NO DATA BEING COLLECTED."
+                )
+                return {}
+            else:
+                logging.info(
+                    "Netatmo time-out error, waiting and establishing new connection."
+                    + f"Attempt {attempt} of {MAX_CONNECTION_RETRIES}"
+                )
+                time.sleep(30)
+
     if station_ids:
         weather_stations = [
             _ for _ in weather_station_data.rawData if _["_id"] in station_ids
@@ -331,9 +348,6 @@ def initial_setup(sensor_arrangement: "SensorArrangement") -> None:
 
 def stream(sleep_time: int = 240) -> None:
     """Extract, transform and load Netatmo devices linked to your account."""
-    # if not any((NETATMO_CLIENT_ID, NETATMO_CLIENT_SECRET, NETATMO_REFRESH_TOKEN)):
-    #     logging.info("Netatmo credentials not found in .env.")
-    #     return None
     for data in _extract().values():
         observation_stream = _transform(data)
         for o in observation_stream:
