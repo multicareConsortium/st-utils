@@ -100,7 +100,7 @@ def _extract(
             weather_station_data = ln.WeatherStationData(AUTHENTICATION)
             break
         except TimeoutError as e:
-            if attempt == MAX_CONNECTION_RETRIES:
+            if attempt == MAX_CONNECTION_RETRIES - 1:
                 logging.critical(
                     f"Netatmo sensor link down {e} - NO DATA BEING COLLECTED."
                 )
