@@ -63,6 +63,7 @@ def generate_sensor_config_files() -> List[Path]:
 
 
 SENSOR_CONFIG_FILES = generate_sensor_config_files()
+MAX_CONNECTION_RETRIES = 10
 
 
 def netatmo_auth_check(authentication: ClientAuth) -> bool:
