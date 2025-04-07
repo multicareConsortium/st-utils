@@ -99,7 +99,9 @@ def _extract(
         try:
             weather_station_data = ln.WeatherStationData(AUTHENTICATION)
             break
-        except TimeoutError as e:
+        # catching a type error is not strictly correct, see
+        # PR: https://github.com/philippelt/netatmo-api-python/pull/100
+        except (TimeoutError, TypeError) as e:
             if attempt == MAX_CONNECTION_RETRIES - 1:
                 logging.critical(
                     f"Netatmo sensor link down {e} - NO DATA BEING COLLECTED."
