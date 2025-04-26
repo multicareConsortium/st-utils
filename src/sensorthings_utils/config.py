@@ -16,9 +16,9 @@ ROOT_DIRECTORY = Path(__file__).parent.parent.parent
 def _make_credentials_dir() -> Path:
     """
     Create a credentials directory in the project root if it does not exist.
-    Credentials for all supported sensor types are *initially* stored in a .env file,
-    once they are parsed (by internal functions credentials), credentials kept in the
-    .credentials directory.
+    Credentials for all supported sensor types are *initially* stored in a
+    .env file, once they are parsed (by internal functions credentials),
+    credentials kept in the .credentials directory.
     """
     credentials_directory = ROOT_DIRECTORY / ".credentials"
     if not credentials_directory.exists():
