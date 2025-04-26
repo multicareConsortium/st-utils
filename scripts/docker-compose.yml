@@ -14,6 +14,7 @@ services:
     volumes:
       - python-app_credentials:/app/.credentials
     command: ["uv", "run", "/app/src/sensorthings_utils/main.py"]
+    restart: unless-stopped
 
   web:
     image: fraunhoferiosb/frost-server:2.5.3
