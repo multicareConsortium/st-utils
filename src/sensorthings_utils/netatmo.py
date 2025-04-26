@@ -19,46 +19,12 @@ from pathlib import Path
 # internal
 from .sensor_things.core import Observation
 from .config import CREDENTIALS_DIRECTORY, FROST_ENDPOINT, FROST_CREDENTIALS
+from .connections import NetatmoConnection
 
 # type checking only
 if TYPE_CHECKING:
     from .sensor_things.core import SensorThingsObject, Datastream
     from .sensor_things.extensions import SensorArrangement
-
-# environment setup
-CONTAINER_ENVIRONMENT = True if os.getenv("CONTAINER_ENVIRONMENT") else False
-NETATMO_CREDENTIALS_FILE = Path(CREDENTIALS_DIRECTORY / ".netatmo.credentials")
-
-
-def _write_netatmo_credentials() -> None:
-    """
-    Get Netatmo credentials from the environment and write them to a credentials file.
-    """
-    # Since the .env file is not baked into container image, only load the .env outside
-    # of a container environment.
-    if not CONTAINER_ENVIRONMENT:
-        dotenv.load_dotenv(ENV_FILE)
-    NETATMO_CLIENT_ID = os.getenv("NETATMO_CLIENT_ID")
-    NETATMO_CLIENT_SECRET = os.getenv("NETATMO_CLIENT_SECRET")
-    NETATMO_REFRESH_TOKEN = os.getenv("NETATMO_REFRESH_TOKEN")
-    credentials = {
-        "CLIENT_ID": NETATMO_CLIENT_ID,
-        "CLIENT_SECRET": NETATMO_CLIENT_SECRET,
-        "REFRESH_TOKEN": NETATMO_REFRESH_TOKEN,
-    }
-    with open(NETATMO_CREDENTIALS_FILE, "w") as f:
-        json.dump(credentials, f, indent=4)
-    logging.info(f"Wrote Netatmo credentials to {NETATMO_CREDENTIALS_FILE}")
-    return None
-
-
-if not NETATMO_CREDENTIALS_FILE.exists():
-    _write_netatmo_credentials()
-if ENV_FILE.exists() and NETATMO_CREDENTIALS_FILE.exists():
-    if os.path.getmtime(ENV_FILE) > os.path.getmtime(NETATMO_CREDENTIALS_FILE):
-        _write_netatmo_credentials()
-
-AUTHENTICATION = ln.ClientAuth(credentialFile=NETATMO_CREDENTIALS_FILE)
 
 # logging setup
 logging.basicConfig(
@@ -88,38 +54,20 @@ def _extract(
     """
     Return latest observations from all Netatmo weather stations.
 
-    :param station_ids: Description
-    :type station_ids:
-    :return: Description
+    :param station_ids: Station IDs to filter by.
+    :type station_ids: List[str]
+    :return: Available netatmo sensors and their respective data.
     :rtype: Dict[str, Dict[str, str | int | float]]
     """
-    data = {}  # type: Dict[str, Dict[str, str | int | float]]
-    # network error handling:
-    for attempt in range(MAX_CONNECTION_RETRIES):
-        try:
-            weather_station_data = ln.WeatherStationData(AUTHENTICATION)
-            break
-        # catching a type error is not strictly correct, see
-        # PR: https://github.com/philippelt/netatmo-api-python/pull/100
-        except (TimeoutError, TypeError) as e:
-            if attempt == MAX_CONNECTION_RETRIES - 1:
-                logging.critical(
-                    f"Netatmo sensor link down {e} - NO DATA BEING COLLECTED."
-                )
-                return {}
-            else:
-                logging.info(
-                    "Netatmo time-out error, waiting and establishing new connection."
-                    + f"Attempt {attempt} of {MAX_CONNECTION_RETRIES}"
-                )
-                time.sleep(30)
-
+    data = {}  
+    netatmo_connection = NetatmoConnection()
+    netatmo_rawdata = netatmo_connection.retrieve()
     if station_ids:
         weather_stations = [
-            _ for _ in weather_station_data.rawData if _["_id"] in station_ids
+            _ for _ in netatmo_rawdata.rawData if _["_id"] in station_ids
         ]
     else:
-        weather_stations = weather_station_data.rawData
+        weather_stations = netatmo_rawdata.rawData
     for station in weather_stations:
         station_id = station["_id"]
         dashboard_Data = station["dashboard_data"]
