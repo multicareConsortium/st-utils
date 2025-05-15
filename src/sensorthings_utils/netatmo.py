@@ -122,9 +122,11 @@ def _extract(
         weather_stations = weather_station_data.rawData
     for station in weather_stations:
         station_id = station["_id"]
-        dashboard_Data = station["dashboard_data"]
-        dashboard_Data["station_id"] = station_id
-        data[station_id] = dashboard_Data
+        if station["reachable"] == False:
+            return data
+        dashboard_data = station["dashboard_data"]
+        dashboard_data["station_id"] = station_id
+        data[station_id] = dashboard_data
     logger.info(f"Retrieved {len(data)} sets of observations.")
     return data
 
@@ -351,6 +353,8 @@ def initial_setup(sensor_arrangement: "SensorArrangement") -> None:
 def stream(sleep_time: int = 240) -> None:
     """Extract, transform and load Netatmo devices linked to your account."""
     for data in _extract().values():
+        if not data:
+            logging.info(f"No data.")
         observation_stream = _transform(data)
         for o in observation_stream:
             sensor_name = o[0]
