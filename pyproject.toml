@@ -26,3 +26,8 @@ dev = [
 testpaths = [
     "tests"
 ]
+filterwarnings = [
+    "ignore:The 'User' class is no longer maintained by Netatmo:DeprecationWarning",
+    "ignore:The 'DeviceList' class was renamed 'WeatherStationData':DeprecationWarning",
+    "ignore:The 'WelcomeData' class was renamed 'HomeData':DeprecationWarning"
+]

@@ -19,6 +19,11 @@ SupportedSensors = Literal[
     "netatmo",
 ]
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(name)s] %(levelname)s - %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
 
 def stream_all(sensor_types: List[SupportedSensors]) -> None:
     logging.info("Sensor stream starts in 30s.")
@@ -35,3 +40,5 @@ def stream_all(sensor_types: List[SupportedSensors]) -> None:
 
 if __name__ == "__main__":
     stream_all(["all"])
+
+# some comment.

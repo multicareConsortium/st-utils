@@ -1,3 +1,5 @@
+"""Global st-utils configuration, including credential management."""
+
 # standard
 import logging
 from pathlib import Path
@@ -9,26 +11,21 @@ import dotenv
 # internal
 from lnetatmo import ClientAuth
 
+# logging
+
+# logging setup
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s: %(levelname)s - %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+logger = logging.getLogger("netatmo")
+
+
 # directory setup
-ROOT_DIRECTORY = Path(__file__).parent.parent.parent
-
-
-def _make_credentials_dir() -> Path:
-    """
-    Create a credentials directory in the project root if it does not exist.
-    Credentials for all supported sensor types are *initially* stored in a
-    .env file, once they are parsed (by internal functions credentials),
-    credentials kept in the .credentials directory.
-    """
-    credentials_directory = ROOT_DIRECTORY / ".credentials"
-    if not credentials_directory.exists():
-        os.mkdir(credentials_directory)
-    return credentials_directory
-
-
-CREDENTIALS_DIRECTORY = _make_credentials_dir()
-CONFIG_PATHS = ROOT_DIRECTORY / "sensor_configs"
-ENV_FILE = ROOT_DIRECTORY / ".env"
+ROOT_DIR = Path(__file__).parent.parent.parent
+CONFIG_PATHS = ROOT_DIR / "sensor_configs"
+ENV_FILE = ROOT_DIR / ".env"
 
 # environment set up
 # use of `or` to set defaults for env variables when not set in a docker-compose or .env
@@ -44,7 +41,7 @@ FROST_ENDPOINT = (
     os.getenv("FROST_ENDPOINT") or "http://localhost:8080/FROST-Server/v1.1"
 )
 # set in a docker-compose file, constant is equivalent to None in non-container:
-CONTAINER_ENVIRONMENT = os.getenv("CONTAINER_ENVIRONMENT")
+CONTAINER_ENVIRONMENT = bool(os.getenv("CONTAINER_ENVIRONMENT"))
 
 
 def generate_sensor_config_files() -> List[Path]:
@@ -63,7 +60,6 @@ def generate_sensor_config_files() -> List[Path]:
 
 
 SENSOR_CONFIG_FILES = generate_sensor_config_files()
-MAX_CONNECTION_RETRIES = 10
 
 
 def netatmo_auth_check(authentication: ClientAuth) -> bool:
@@ -85,6 +81,8 @@ def netatmo_auth_check(authentication: ClientAuth) -> bool:
 
 
 if __name__ == "__main__":
-    print(f"{ROOT_DIRECTORY} Exists: {ROOT_DIRECTORY.exists()}")
+    print(f"{ROOT_DIR} Exists: {ROOT_DIR.exists()}")
     print(f"{CONFIG_PATHS} Exists: {CONFIG_PATHS.exists()}")
     print(f"{ENV_FILE} Exists: {ENV_FILE.exists()}")
+
+# another comment.
