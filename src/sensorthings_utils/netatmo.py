@@ -36,6 +36,9 @@ def _filter(
     if exclude:
        payload = [i for i in payload if i["_id"] not in exclude] 
     for item in payload:
+        if item["reachable"] == False:
+            logging.info(f"Netatmo Station {item["_id"]} is unreachable.")
+            return data
         station_id = item["_id"]
         dashboard_data = item["dashboard_data"]
         dashboard_data["station_id"] = station_id
@@ -72,9 +75,16 @@ def stream(
         sleep_time: int = 240
     ) -> None:
     """Extract, transform and load Netatmo devices linked to your account."""
+<<<<<<< HEAD
     payload = netatmo_connection.retrieve()
     for station in _filter(payload, exclude).values():
         observation_stream = _transform(station)
+=======
+    for data in _extract().values():
+        if not data:
+            logging.info(f"No data.")
+        observation_stream = _transform(data)
+>>>>>>> origin/main
         for o in observation_stream:
             sensor_name = o[0]
             datastream_name = o[1]
