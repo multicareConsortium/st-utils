@@ -5,9 +5,10 @@ import os
 import logging
 import json
 from pathlib import Path
-from typing import List, Any, Dict
+from typing import List, Any, Dict, Callable
 from abc import ABC, abstractmethod
 import time
+from dataclasses import dataclass
 import queue
 
 # external
@@ -28,29 +29,68 @@ SingleAppCredentials = Dict[str, str]
 MultiApplicationCredentials = List[Dict[str, str]]
 Credentials = SingleAppCredentials | MultiApplicationCredentials
 
+@dataclass
+class NetatmoCredentials:
+    NETATMO_CLIENT_ID: str
+    NETATMO_CLIENT_SECRET: str
+    NETATMO_REFRESH_TOKEN: str
 
-def _write_credentials_file(
-    credentials: Dict,
-    credentials_file: SingleAppCredentialFile | MultiAppCredentialFile,
-) -> None:
+@dataclass
+class TTSCredentials:
+    ...
+
+def _init_credentials(
+    sensor_type: str,
+    target: Path = ROOT_DIR / ".credentials",
+    env: Path | None = ROOT_DIR / ".env",
+    container_environment: bool = False,
+    format_override: Callable[[str], str] = lambda x: x 
+    ) -> SingleAppCredentialFile | MultiAppCredentialFile:
     """
-    Write a single or multi application credential file.
+    Write credential files for various sensor systems.
 
-    A single application file usually includes on application identifier and
-    one set of keys, an exmaple of this is Netatmo, where sensors are associated
-    with a user rather than an application. A multi application file will
-    associate multiple applications with their own respective keys, for
-    example as found in TheThingsStack.
+    The application will strictly load credentials from a .credentials dir
+    which contains a number of .<sensor_type>.credentials files. Credentials
+    may be stored directly in the .credentials dir or loaded from a .env. This
+    function handles the writing of .credentials with the following paths being
+    plausible:
+
+        1. Creates a .credentials dir and file if none exists
+        2. If in a Container environment, we expect the credentials to have 
+            been passed in the `docker-compose`; note that since .credentials
+            is a mounted volume 
     """
-    credentials_file.parent.mkdir(mode=711, parents=True, exist_ok=True)
-    with open(credentials_file, "w") as f:
-        json.dump(credentials, f, indent=4)
-    return None
-
+    credentials_file = target / ("." + sensor_type + ".credentials")
+    if not credentials_file.exists():
+        credentials_file.parent.mkdir(parents=True, exist_ok=True)
+        logging.info(".credentials directory created.")
+        credentials_file.touch(exist_ok=True)
+        logging.info(".credentials file created.")
+    else:
+        logging.info(".credentials file exists")
+    if (
+        (env and
+        os.path.getmtime(env) > os.path.getmtime(credentials_file)) or
+        container_environment
+        ):
+        logging.info(
+                ".env file is newer than .credentials. " +
+                "Checking for credentials.")
+        credentials = os.getenv(f"{sensor_type.upper()}" + "_CREDENTIALS")
+        if not credentials and container_environment:
+            raise FileNotFoundError(f"No {sensor_type} credentials found in continer environment!")
+        if not credentials and not container_environment:
+            raise FileNotFoundError(f"No {sensor_type} credentials found in .env!")
+        with open(credentials_file, "a") as f:
+            if credentials: f.write(format_override(credentials))
+            logging.info(f"Wrote {sensor_type}.credentials file.")
+            return credentials_file
+    else:
+        logging.info(".credentials are newer than .env, using those.")
+        return credentials_file
 
 # logging setup
 logger = logging.getLogger("connections")
-
 
 class CredentialedHTTPSensorConnection(ABC):
     """
@@ -69,7 +109,7 @@ class CredentialedHTTPSensorConnection(ABC):
     @abstractmethod
     def _credentials(
         self,
-    ) -> CredentialFile:
+    ) -> Dict[str, str]:
         """
         Load, parse and write credentials from environment variables and write
         them to a permanent credentials .<sensor_type>.credentials file,
@@ -153,45 +193,22 @@ class NetatmoConnection(CredentialedHTTPSensorConnection):
     @property
     def _credentials(
         self,
-    ) -> SingleAppCredentialFile:
+    ) -> Dict[str, str]:
         """
-        Return path to a .<sensor_type>.credentials file.
-
-        Parse or load environment variables and write them to a permanent
-        credentials file. Rewrites .credentials file if .env is newer.
         """
-        # Since the .env file is not baked into container image, only load the .env
-        # outside of a container environment otherwise it is assumed that the
-        # credentials are available as an env variable.
-        if not CONTAINER_ENVIRONMENT:
-            dotenv.load_dotenv(self.env_file)
-        netatmo_client_id = os.getenv("NETATMO_CLIENT_ID")
-        netatmo_client_secret = os.getenv("NETATMO_CLIENT_SECRET")
-        netatmo_refresh_token = os.getenv("NETATMO_REFRESH_TOKEN")
-        if not all([netatmo_client_id, netatmo_client_secret, netatmo_refresh_token]):
-            raise FileNotFoundError(
-                "No or incomplete Netatmo credentials found. "
-                + "Where you expecting them? Check environment variables."
+        netatmo_credentials_file = _init_credentials(
+                "netatmo", 
+                self.credentials_dir, 
+                self.env_file,
+                CONTAINER_ENVIRONMENT
             )
-        netatmo_credentials: SingleAppCredentials = {
-            "CLIENT_ID": netatmo_client_id,
-            "CLIENT_SECRET": netatmo_client_secret,
-            "REFRESH_TOKEN": netatmo_refresh_token,
-        }  # type: ignore (value error would be raised if not str)
-        netatmo_credentials_file: SingleAppCredentialFile = Path(
-            self.credentials_dir / ".netatmo.credentials"
-        )
-        if not netatmo_credentials_file.exists():
-            _write_credentials_file(netatmo_credentials, netatmo_credentials_file)
-            logging.info("Netatmo credential file written.")
-            return netatmo_credentials_file
-        if self.env_file.exists() and netatmo_credentials_file.exists():
-            if os.path.getmtime(self.env_file) > os.path.getmtime(
-                netatmo_credentials_file
-            ):
-                _write_credentials_file(netatmo_credentials, netatmo_credentials_file)
-                logging.info("Netatmo credential file updated.")
-        return netatmo_credentials_file
+        with open(netatmo_credentials_file, "r") as f:
+            netatmo_credentials = json.load(f)
+        try:
+            NetatmoCredentials(**netatmo_credentials)
+        except:
+            raise AttributeError("Netatmo credentials in wrong format! Check keys.")
+        return netatmo_credentials
 
     @property
     def _auth(self) -> lnetatmo.ClientAuth:
@@ -218,6 +235,7 @@ class NetatmoConnection(CredentialedHTTPSensorConnection):
                     time.sleep(30)
 
 
+
 class TTSConnection(CredentialedMQTTSensorConnection):
     """
     TTS MQQT connection class. Endpoint for communicating with TheThings Stack.
@@ -241,9 +259,9 @@ class TTSConnection(CredentialedMQTTSensorConnection):
     @property
     def _credentials(
         self,
-    ) -> MultiAppCredentialFile:
+    ) -> Dict[str, str]:
         """
-        Return path to a `.tts.credentials` file.
+        Return credentials from the `.tts.credentials` file.
 
         Parse or load environment variables and write them to a permanent
         credentials file for use later. TTS uses application names and API keys
@@ -256,38 +274,20 @@ class TTSConnection(CredentialedMQTTSensorConnection):
 
             TTS_CREDENTIALS = {"<APP_NAME_1>":"<APP1_API_KEY>", ...}
         """
-        tts_credentials_file: MultiAppCredentialFile = Path(
-            self.credentials_dir / ".tts.credentials"
-        )
-
-        # Since the .env file is not baked into container image, only load the
-        # .env outside of a container environment otherwise it is assumed that
-        # the credentials are available as an env variable.
-        if not CONTAINER_ENVIRONMENT:
-            dotenv.load_dotenv(self.env_file)
-        tts_credentials = os.getenv("TTS_CREDENTIALS")
-        if not tts_credentials:
-            raise FileNotFoundError(
-                "No or incomplete TheThingsStack credentials found. "
-                + "Where you expecting them? Check environment variables."
+        tts_credentials_file = _init_credentials(
+                "tts", 
+                self.credentials_dir, 
+                self.env_file,
+                CONTAINER_ENVIRONMENT
             )
-        tts_credentials = json.loads(tts_credentials)
-        if not tts_credentials_file.exists():
-            _write_credentials_file(tts_credentials, tts_credentials_file)
-            logging.info("TheThingsNetwork credential file written.")
-            return tts_credentials_file
-        if self.env_file.exists() and tts_credentials_file.exists():
-            if os.path.getmtime(self.env_file) > os.path.getmtime(tts_credentials_file):
-                _write_credentials_file(tts_credentials, tts_credentials_file)
-                logging.info("TheThingsNetwork credential file updated.")
-        return tts_credentials_file
+        with open(tts_credentials_file, "r") as f:
+            tts_credentials = json.load(f)
+        return tts_credentials
 
     @property
     def _auth(self) -> mqttClient:
         """Authenticate connections using credentials."""
-        with open(self._credentials, "r") as f:
-            app_creds = json.load(f)
-            app_key = app_creds[self.application_name]
+        app_key = self._credentials[self.application_name]
         client = mqttClient()
         # TTS usernames are equivalent to the application names.
         client.username_pw_set(self.application_name, app_key)
@@ -296,7 +296,6 @@ class TTSConnection(CredentialedMQTTSensorConnection):
 
     def subscribe(self) -> None:
         client = self._auth
-
         # put a retrieved payload in the queue.
         def on_message(client, userdata, message):
             self.payload_queue.put(json.loads(message.payload))
