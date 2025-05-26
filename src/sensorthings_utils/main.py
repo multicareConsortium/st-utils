@@ -25,6 +25,7 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 
+
 def stream_all(sensor_types: List[SupportedSensors]) -> None:
     logging.info("Sensor stream starts in 30s.")
     time.sleep(30)
