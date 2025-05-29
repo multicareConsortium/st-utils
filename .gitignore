@@ -22,8 +22,8 @@ scratch.py
 
 # Credential Files
 */.credentials
-.netatmo.credentials
-.tts.credentials
+*.netatmo.credentials
+*.tts.credentials
 
 # Debug scripts
 debug*.py
