@@ -6,6 +6,7 @@ from urllib.parse import quote
 from urllib import error
 from typing import Dict, Tuple, TYPE_CHECKING
 import json
+import logging
 
 # external
 
@@ -109,7 +110,7 @@ def filter_query(
             response = json.loads(response.read())
             return response
     except error.HTTPError as e:
-        logger.critical(f"{e} {e.read()}")
+        logging.critical(f"{e} {e.read()}")
         return {}
 
 
