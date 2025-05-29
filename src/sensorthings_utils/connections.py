@@ -42,6 +42,7 @@ class TTSCredentials: ...
 
 
 def _init_credentials(
+    application_name: str,
     sensor_type: str,
     target: Path = ROOT_DIR / ".credentials",
     env: Path = ROOT_DIR / ".env",
@@ -74,7 +75,7 @@ def _init_credentials(
     never bake .env into container images, and they're preloaded using the
     env_file marker.
     """
-    credentials_file = target / (f".{sensor_type}.credentials")
+    credentials_file = target / (f"{application_name}.{sensor_type}.credentials")
     if not credentials_file.exists():
         credentials_file.parent.mkdir(parents=True, exist_ok=True)
         credentials_file.touch(exist_ok=True)
@@ -84,7 +85,7 @@ def _init_credentials(
         logging.info(".credentials file exists")
         new_credential_file = False
     # new credential file and an .env exists (outside container environment)
-    # so write the credentials.
+    # so write the credentials from env.
     if new_credential_file and env.exists():
         # flush out environment variables currently loaded into the .env
         # this is mostly a testing issue.
@@ -93,12 +94,14 @@ def _init_credentials(
             f"Environment exists, loading variables and writing to credentials."
         )
         dotenv.load_dotenv(env)
-        credentials = os.getenv(f"{sensor_type.upper()}_CREDENTIALS")
-        if credentials == None:
+        all_credentials = os.getenv(f"{sensor_type.upper()}_CREDENTIALS")
+        if all_credentials == None:
             raise ValueError(
                 f"Environment file found, but {sensor_type.capitalize()} not found. "
                 + "Cannot pass malformed or incomplete .env files."
             )
+        all_credentials_json = json.loads(all_credentials)
+        credentials = json.dumps(all_credentials_json.get(application_name))
         with open(credentials_file, "w") as f:
             f.write(format_override(credentials))
             logging.info(f"wrote credentials to .{sensor_type}.credentials file.")
@@ -107,12 +110,14 @@ def _init_credentials(
     # enviornments) then we assume they're already loaded up, otherwise
     # exception.
     if new_credential_file and not env.exists():
-        credentials = os.getenv(f"{sensor_type.upper()}_CREDENTIALS")
-        if credentials == None:
+        all_credentials = os.getenv(f"{sensor_type.upper()}_CREDENTIALS")
+        if all_credentials == None:
             raise FileNotFoundError(
                 f"No credentials found for '{sensor_type}': missing both "
                 + "env file and container variable."
             )
+        all_credentials_json = json.loads(all_credentials)
+        credentials = json.dumps(all_credentials_json.get(application_name))
         with open(credentials_file, "w") as f:
             f.write(format_override(credentials))
             logging.info(f"wrote credentials to .{sensor_type}.credentials file.")
@@ -143,12 +148,15 @@ def _init_credentials(
             ".env file is newer than .credentials. " + "Checking for credentials."
         )
         dotenv.load_dotenv(env)
-        credentials = os.getenv(f"{sensor_type.upper()}_CREDENTIALS")
-        if credentials == None:
+        all_credentials = os.getenv(f"{sensor_type.upper()}_CREDENTIALS")
+        if all_credentials == None:
             raise ValueError(
                 f"Newer environment file found, but {sensor_type.capitalize()} not found. "
                 + "Ensure key is in .env file!"
             )
+        all_credentials_json = json.loads(all_credentials)
+        credentials_json = all_credentials_json.get(application_name)
+        credentials = json.dumps(credentials_json)
         with open(credentials_file, "w") as f:
             f.write(format_override(credentials))
             logging.info(f"wrote credentials to .{sensor_type}.credentials file.")
@@ -253,13 +261,15 @@ class NetatmoConnection(CredentialedHTTPSensorConnection):
 
     def __init__(
         self,
+        application_name: str,
         credentials_dir: Path = Path(f"{ROOT_DIR}/.credentials"),
         env_file: Path = Path(f"{ROOT_DIR}/.env"),
         max_retries: int = 10,
     ):
-        self.max_connection_retries = max_retries
+        self.application_name = application_name
         self.credentials_dir = credentials_dir
         self.env_file = env_file
+        self.max_connection_retries = max_retries
 
     @property
     def _credentials(
@@ -268,17 +278,14 @@ class NetatmoConnection(CredentialedHTTPSensorConnection):
         """
         Initialize, check and return netatmo credentials file.
         """
-        logging.debug(
-            f"Environment file being passed to _init_credentials: {self.env_file}"
-        )
         netatmo_credentials_file = _init_credentials(
+            self.application_name,
             "netatmo",
             self.credentials_dir,
             self.env_file,
         )
         with open(netatmo_credentials_file, "r") as f:
             netatmo_credentials = json.load(f)
-            logging.debug(f"Credentials being returned: {netatmo_credentials}")
         try:
             NetatmoCredentials(**netatmo_credentials)
         except:
@@ -356,6 +363,7 @@ class TTSConnection(CredentialedMQTTSensorConnection):
             TTS_CREDENTIALS = {"<APP_NAME_1>":"<APP1_API_KEY>", ...}
         """
         tts_credentials_file = _init_credentials(
+            self.application_name,
             "tts",
             self.credentials_dir,
             self.env_file,
@@ -367,7 +375,7 @@ class TTSConnection(CredentialedMQTTSensorConnection):
     @property
     def _auth(self) -> mqttClient:
         """Authenticate connections using credentials."""
-        app_key = self._credentials[self.application_name]
+        app_key = self._credentials["API_KEY"]
         client = mqttClient()
         # TTS usernames are equivalent to the application names.
         client.username_pw_set(self.application_name, app_key)

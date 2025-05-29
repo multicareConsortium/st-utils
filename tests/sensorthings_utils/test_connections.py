@@ -4,15 +4,16 @@ import json
 import logging
 import os
 import pytest
-from pathlib import Path
-from unittest import TestCase
-from typing import Dict
 import time
 #external
+import dotenv
 #internal
 from sensorthings_utils.connections import _init_credentials, TTSConnection, NetatmoConnection
+from sensorthings_utils.config import ROOT_DIR
 
 # Common Fixtures
+NOW = time.time()
+
 @pytest.fixture
 def tmp_credentials_dir(tmp_path):
    return tmp_path / ".credentials"
@@ -29,12 +30,12 @@ def mock_tts_credentials():
 @pytest.fixture
 def mock_netatmo_credentials():
     """Netatmo credentials as loaded from a .env file."""
-    return {"CLIENT_ID": "1", "CLIENT_SECRET": "2", "REFRESH_TOKEN": "3"}
+    return {"netatmo-foo":{"CLIENT_ID": "1", "CLIENT_SECRET": "2", "REFRESH_TOKEN": "3"}}
 
 @pytest.fixture
 def bad_credentials():
     """Bad credentials."""
-    return {"qwerty":123}
+    return {"netatmo-bar": {"qwerty":"123"}}
 
 @pytest.fixture
 def mock_env_file(
@@ -86,15 +87,20 @@ class TestTTSConnection():
         Integration test that tests out a real connection with an active system.
 
         For this test to pass you will need to have real credentials in the
-        .env or .../.credentials/.tts.credentials
+        .env. 
         """
         # we need a small monkeypatch here to get the application name from
         # the available credentials in your real .env.
-        tts_credentials = _init_credentials(sensor_type = "tts")
-        with open(tts_credentials, "r") as f:
-            credentials = json.loads(f.read())
-            application_name = next(iter(credentials))
-        
+        real_env = ROOT_DIR / ".env"
+        os.utime(real_env, (NOW, NOW))
+        dotenv.load_dotenv(real_env)
+        if (tts_credentials := os.getenv("TTS_CREDENTIALS")) is None:
+            raise ValueError("Where are the TTS credentials?")
+        tts_credentials = json.loads(tts_credentials)
+        application_name = next(iter(tts_credentials))
+        tts_credentials = _init_credentials(
+                application_name, sensor_type = "tts"
+                )
         tts_connection = TTSConnection(
                 application_name=application_name,
                 mqtt_host = "eu1.cloud.thethings.network",
@@ -109,12 +115,12 @@ class TestTTSConnection():
         
 class TestInitCredentials:
     """Testing the _init_credentials function."""
-    def test_init_credentials_newer_env(self, tmp_credentials_dir, mock_env_file):
+    def test_init_credentials_newer_env_with_netatmo_creds(self, tmp_credentials_dir, mock_env_file):
         """Should create credentials from a newer .env file."""
-        now = time.time()
         # add some time to make sure the env_file is newer than the credentials.
-        os.utime(mock_env_file, (now +10, now+10))
+        os.utime(mock_env_file, (NOW + 10, NOW + 10))
         credentials_file = _init_credentials(
+                "netatmo-foo",
                 "netatmo",
                 target=tmp_credentials_dir, 
                 env=mock_env_file, 
@@ -126,37 +132,40 @@ class TestInitCredentials:
                 assert line
                 assert len(credential_lines) == 1
                 dict_creds = json.loads(line)
+                logging.debug(f"{dict_creds=}")
+                # highly dependent on the mock_env_file
                 assert "CLIENT_ID" in dict_creds
                 assert "CLIENT_SECRET" in dict_creds
                 assert "REFRESH_TOKEN" in dict_creds
 
-    def test_exception_missing_env_variables(self, tmp_credentials_dir, tmp_path, monkeypatch):
+    def test_exception_missing_env_variables_with_netatmo_creds(self, tmp_credentials_dir, tmp_path, monkeypatch):
         """Should raise an error if the credentials file is new but no environment variables where found."""
         with pytest.raises(FileNotFoundError, match="No credentials found"):
             monkeypatch.delenv("NETATMO_CREDENTIALS")
             credentials_file = _init_credentials(
+                    "netatmo-foo",
                     "netatmo",
                     target=tmp_credentials_dir,
                     env=tmp_path / ".env",
             )
 
-    def test_exception_missing_creds_from_env_and_credentials_exist(self, tmp_credentials_dir, empty_env_file, monkeypatch):
+    def test_exception_missing_creds_from_env_and_credentials_exist_with_netatmo(self, tmp_credentials_dir, empty_env_file, monkeypatch):
         """Should raise an error if bad or missing credentials are found."""
         # need the credentials dir and file to pre-exist for this test
         credentials_dir = tmp_credentials_dir
         credentials_dir.mkdir()
-        (credentials_dir / ".netatmo.credentials").touch()
+        (credentials_dir / "netatmo-foo.netatmo.credentials").touch()
         # add some time to make sure the env_file is newer than the credentials.
-        now = time.time()
         monkeypatch.delenv("NETATMO_CREDENTIALS")
         with pytest.raises(ValueError, match="Ensure key is in .env file!"):
             credentials_file = _init_credentials(
+                    "netatmo-foo",
                     "netatmo",
                     target=tmp_credentials_dir,
                     env=empty_env_file,
             )
                 
-    def test_container_environment(
+    def test_container_environment_with_netatmo(
             self, 
             tmp_credentials_dir, 
             tmp_env_file,
@@ -166,6 +175,7 @@ class TestInitCredentials:
         """Should load up variables from the environment and write them to a credential file"""
         monkeypatch.setenv("NETATMO_CREDENTIALS", json.dumps(mock_netatmo_credentials))
         credentials_file = _init_credentials(
+                "netatmo-foo",
                 "netatmo",
                 target = tmp_credentials_dir,
                 env=tmp_env_file,
@@ -185,16 +195,15 @@ class TestNetatmoConnection:
 
     def test_make_mock_connection(self):
             """Should make a Netatmo Connection (no auth.)"""
-            netatmo_connection = NetatmoConnection()
+            netatmo_connection = NetatmoConnection("netatmo-bar")
             assert isinstance(netatmo_connection, NetatmoConnection)
 
     def test_exception_for_bad_credentials(self, tmp_credentials_dir, bad_env_file):
         """Should raise exception for bad credentials."""
         init_bad_env_file = bad_env_file
         # make sure env file is newer so it is used (not artifact creds)
-        now = time.time()
-        os.utime(init_bad_env_file, (now+10, now+10)) 
-        netatmo_connect = NetatmoConnection(tmp_credentials_dir, bad_env_file)
+        os.utime(init_bad_env_file, (NOW+10, NOW+10)) 
+        netatmo_connect = NetatmoConnection("netatmo-bar", tmp_credentials_dir, bad_env_file)
         with pytest.raises(
                 AttributeError, match=r"Netatmo credentials in wrong format!"
             ):
@@ -206,13 +215,18 @@ class TestNetatmoConnection:
         Integration test that tests out a real netatmo connection with an active system.
 
         For this test to pass you will need to have real credentials in the
-        .env or .../.credentials/.netatmo.credentials
+        .env.
         """
         from logging import ERROR
         # this test might not always work because lnetatmo tokens get stale
         # sometimes, we capture the logs.
+        # always use real_env, since .credentials might get deleted in other 
+        # tests. You'll likely end up replacing the refresh token quite often
+        # which is currently a pain.
+        real_env = ROOT_DIR / ".env"
+        os.utime(real_env, (NOW, NOW))
         with caplog.at_level(ERROR, logger="lnetatmo"):
-            netatmo_connection = NetatmoConnection(max_retries=1)
+            netatmo_connection = NetatmoConnection("tudelft-dt", max_retries=1)
             payload = netatmo_connection.retrieve()
             if any("invalid_grant" in msg for msg in caplog.messages):
                 pytest.skip(
