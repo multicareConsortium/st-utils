@@ -10,6 +10,8 @@ from abc import ABC, abstractmethod
 import time
 from dataclasses import dataclass
 import queue
+from functools import cached_property
+import threading
 
 # external
 import dotenv
@@ -82,7 +84,7 @@ def _init_credentials(
         logging.info(".credentials file created.")
         new_credential_file = True
     else:
-        logging.info(".credentials file exists")
+        logging.info(f"{credentials_file} file exists.")
         new_credential_file = False
     # new credential file and an .env exists (outside container environment)
     # so write the credentials from env.
@@ -101,6 +103,7 @@ def _init_credentials(
                 + "Cannot pass malformed or incomplete .env files."
             )
         all_credentials_json = json.loads(all_credentials)
+        logging.debug(f"{all_credentials_json}")
         credentials = json.dumps(all_credentials_json.get(application_name))
         with open(credentials_file, "w") as f:
             f.write(format_override(credentials))
@@ -117,6 +120,7 @@ def _init_credentials(
                 + "env file and container variable."
             )
         all_credentials_json = json.loads(all_credentials)
+        logging.debug(f"{all_credentials_json}")
         credentials = json.dumps(all_credentials_json.get(application_name))
         with open(credentials_file, "w") as f:
             f.write(format_override(credentials))
@@ -156,13 +160,14 @@ def _init_credentials(
             )
         all_credentials_json = json.loads(all_credentials)
         credentials_json = all_credentials_json.get(application_name)
+        logging.debug(f"{all_credentials=}")
         credentials = json.dumps(credentials_json)
         with open(credentials_file, "w") as f:
             f.write(format_override(credentials))
             logging.info(f"wrote credentials to .{sensor_type}.credentials file.")
             return credentials_file
     else:
-        logging.info(".credentials are newer than .env, using those.")
+        logging.info(f"{credentials_file} is newer than .env, using existing credentials.")
         return credentials_file
 
 
@@ -174,22 +179,29 @@ class CredentialedHTTPSensorConnection(ABC):
     """
     Connections to sensors which use credentials as their main form of auth.
     """
-
     def __init__(
         self,
+        application_name: str,
         credentials_dir: Path = Path(f"{ROOT_DIR}/.credentials"),
         env_file: Path = Path(f"{ROOT_DIR}/.env"),
+        max_retries: int = 10,
+        interval: int = 300
     ):
+        self.application_name = application_name
         self.credentials_dir = credentials_dir
         self.env_file = env_file
+        self.max_connection_retries = max_retries
+        self.interval = interval 
+        self._thread = None
+        self._stop_event = threading.Event()
 
-    @property
+    @cached_property
     @abstractmethod
     def _credentials(
         self,
     ) -> SingleAppCredentialFile | MultiAppCredentialFile | Dict[str, str]:
         """
-        Load, parse and write credentials from environment variables and write
+        Load and parse from environment variables and write
         them to a permanent credentials .<sensor_type>.credentials file,
         returning the file path.
         """
@@ -208,22 +220,48 @@ class CredentialedHTTPSensorConnection(ABC):
         """Retrieve 'raw' data from a sensor connection."""
         pass
 
+    def start(self):
+        if self._thread is None or not self._thread.is_alive():
+            self._thread = threading.Thread(target=self._loop, daemon=True)
+            self._thread.start()
+
+    def stop(self):
+        self._stop_event.set()
+        if self._thread:
+            self._thread.join()
+
+    def _loop(self):
+        while not self._stop_event.is_set():
+            try:
+                self.retrieve()
+                time.sleep(self.interval)
+            except Exception as e:
+                logging.error(f"Error with {self.application_name}: {e}")
+
 
 class CredentialedMQTTSensorConnection(ABC):
     """
     Connections to sensors which use credentials as their main form of auth.
     """
-
     def __init__(
         self,
+        application_name: str,
+        mqtt_host: str,
+        mqtt_port: int,
         credentials_dir: Path = Path(f"{ROOT_DIR}/.credentials"),
         env_file: Path = Path(f"{ROOT_DIR}/.env"),
     ):
+        self.application_name = application_name
+        self.mqtt_host = mqtt_host
+        self.mqtt_port = mqtt_port
         self.credentials_dir = credentials_dir
         self.env_file = env_file
         self.payload_queue = queue.Queue()
+        self.subscribed: bool = False
+        self._thread = None
+        self._stop_event = threading.Event()
 
-    @property
+    @cached_property
     @abstractmethod
     def _credentials(
         self,
@@ -253,6 +291,22 @@ class CredentialedMQTTSensorConnection(ABC):
         """Retrieve observations from the queue."""
         pass
 
+    def start(self):
+        if self._thread is None or not self._thread.is_alive():
+            self._thread = threading.Thread(target=self._loop, daemon=True)
+            self._thread.start()
+
+    def stop(self):
+        self._stop_event.set()
+        if self._thread:
+            self._thread.join()
+
+    def _loop(self):
+        while not self._stop_event.is_set():
+            try:
+                self.retrieve()
+            except Exception as e:
+                logging.error(f"Error with {self.application_name}: {e}")
 
 class NetatmoConnection(CredentialedHTTPSensorConnection):
     """
@@ -265,13 +319,17 @@ class NetatmoConnection(CredentialedHTTPSensorConnection):
         credentials_dir: Path = Path(f"{ROOT_DIR}/.credentials"),
         env_file: Path = Path(f"{ROOT_DIR}/.env"),
         max_retries: int = 10,
+        interval: int = 300
     ):
-        self.application_name = application_name
-        self.credentials_dir = credentials_dir
-        self.env_file = env_file
-        self.max_connection_retries = max_retries
-
-    @property
+        super().__init__(
+                application_name = application_name,
+                credentials_dir = credentials_dir,
+                env_file = env_file,
+                max_retries = max_retries,
+                interval = interval
+                )
+        
+    @cached_property
     def _credentials(
         self,
     ) -> SingleAppCredentialFile:
@@ -303,13 +361,20 @@ class NetatmoConnection(CredentialedHTTPSensorConnection):
         """Return a netatmo authentication token."""
         return lnetatmo.ClientAuth(credentialFile=self._credentials)
 
-    def retrieve(self) -> List[Dict[str, Any]]:
+    def retrieve(self) -> List[Dict[str, Any]]: #type: ignore
+        """Retrieve the latest observation set (one or more) from the Netatmo API."""
         attempt = 0
         while attempt < self.max_connection_retries:
             try:
                 netatmo_connection = lnetatmo.WeatherStationData(self._auth)
                 attempt = 0
-                return netatmo_connection.rawData
+                if (payload:= netatmo_connection.rawData) is None:
+                    raise ValueError(
+                            "Netatmo Payload for Sensor " +
+                            f"{self.application_name} is empty."
+                            )
+                logging.info(f"Received payload from {self.application_name}")
+                return payload 
             # catching a type error is not strictly correct, see
             # PR: https://github.com/philippelt/netatmo-api-python/pull/100
             except (TimeoutError, TypeError) as e:
@@ -320,6 +385,7 @@ class NetatmoConnection(CredentialedHTTPSensorConnection):
                     + f"Error raised: {e}"
                 )
                 time.sleep(30)
+                return list(dict()) 
         logging.critical(f"Netatmo sensor link down - NO DATA BEING COLLECTED.")
 
 
@@ -336,15 +402,13 @@ class TTSConnection(CredentialedMQTTSensorConnection):
         credentials_dir: Path = Path(f"{ROOT_DIR}/.credentials"),
         env_file: Path = Path(f"{ROOT_DIR}/.env"),
     ):
-        self.application_name = application_name
-        self.mqtt_host = mqtt_host
-        self.mqtt_port = mqtt_port
-        self.credentials_dir = credentials_dir
-        self.env_file = env_file
-        self.payload_queue = queue.Queue()
-        self.subscribed: bool = False
+        super().__init__(application_name=application_name,
+                         mqtt_host=mqtt_host,
+                         mqtt_port=mqtt_port,
+                         credentials_dir=credentials_dir,
+                         env_file=env_file)
 
-    @property
+    @cached_property
     def _credentials(
         self,
     ) -> Dict[str, str]:
@@ -401,13 +465,13 @@ class TTSConnection(CredentialedMQTTSensorConnection):
     def retrieve(self, timeout: int = 300, max_retries: int = 10) -> Dict | None:
         """Return and empty payload queue."""
         if not self.subscribed:
-            raise ConnectionError(f"{self.application_name} is not subscribed!")
+            self.subscribe()
         attempts = 1
         while attempts <= max_retries:
             try:
                 payload_received = self.payload_queue.get(timeout=timeout)
                 attempts = 0 if payload_received else attempts
-                logging.info(payload_received)
+                logging.info(f"Received payload from {self.application_name}")
                 return payload_received
             except queue.Empty:
                 attempts += 1

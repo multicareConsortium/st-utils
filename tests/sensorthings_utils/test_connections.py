@@ -92,26 +92,25 @@ class TestTTSConnection():
         # we need a small monkeypatch here to get the application name from
         # the available credentials in your real .env.
         real_env = ROOT_DIR / ".env"
-        os.utime(real_env, (NOW, NOW))
         dotenv.load_dotenv(real_env)
         if (tts_credentials := os.getenv("TTS_CREDENTIALS")) is None:
             raise ValueError("Where are the TTS credentials?")
         tts_credentials = json.loads(tts_credentials)
-        application_name = next(iter(tts_credentials))
-        tts_credentials = _init_credentials(
-                application_name, sensor_type = "tts"
-                )
-        tts_connection = TTSConnection(
-                application_name=application_name,
-                mqtt_host = "eu1.cloud.thethings.network",
-                )
-        tts_connection.subscribe()
-        payload = tts_connection.retrieve()
-        logging.debug(f"{payload}")
-        time.sleep(5)
-        assert isinstance(payload, dict)
-        assert payload != None
-        assert "end_device_ids" in payload
+        applications = iter(tts_credentials)
+        for application_name in applications:
+            tts_credentials = _init_credentials(
+                    application_name, sensor_type = "tts"
+                    )
+            tts_connection = TTSConnection(
+                    application_name=application_name,
+                    mqtt_host = "eu1.cloud.thethings.network",
+                    )
+            payload = tts_connection.retrieve()
+            logging.debug(f"{payload}")
+            time.sleep(5)
+            assert isinstance(payload, dict)
+            assert payload != None
+            assert "end_device_ids" in payload
         
 class TestInitCredentials:
     """Testing the _init_credentials function."""
