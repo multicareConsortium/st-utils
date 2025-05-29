@@ -114,9 +114,10 @@ def filter_query(
         return {}
 
 
-def initial_setup(sensor_arrangement: "SensorArrangement") -> None:
+def initial_setup(sensor_arrangement: "SensorArrangement") -> str:
     """
-    Initial set up of a Sensor Arrangement on the FROST server.
+    Initial set up of a Sensor Arrangement on the FROST server. Returns the 
+    name of the sensor model.
 
     Commit the sensor arrangement to the FROST server, including the
     relationships between the sensor things objects. This process occurs only
@@ -135,6 +136,7 @@ def initial_setup(sensor_arrangement: "SensorArrangement") -> None:
     # Make Sensors, which are associated only with Datastreams, which are linked later
     for sen in sensor_arrangement.get_entities("Sensor"):
         make_frost_object(sen)
+        sensor_model = sen.name
     # Make ObservedProperties, also linked later with a Datastream
     for op in sensor_arrangement.get_entities("ObservedProperty"):
         make_frost_object(op)
@@ -162,6 +164,7 @@ def initial_setup(sensor_arrangement: "SensorArrangement") -> None:
             thing_id=int(thing_id),
             observed_property_id=int(oprop_id),
         )
+    return sensor_model
 
 
 def make_frost_object(

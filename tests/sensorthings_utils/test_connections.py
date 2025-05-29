@@ -219,12 +219,6 @@ class TestNetatmoConnection:
         """
         from logging import ERROR
         # this test might not always work because lnetatmo tokens get stale
-        # sometimes, we capture the logs.
-        # always use real_env, since .credentials might get deleted in other 
-        # tests. You'll likely end up replacing the refresh token quite often
-        # which is currently a pain.
-        real_env = ROOT_DIR / ".env"
-        os.utime(real_env, (NOW, NOW))
         with caplog.at_level(ERROR, logger="lnetatmo"):
             netatmo_connection = NetatmoConnection("tudelft-dt", max_retries=1)
             payload = netatmo_connection.retrieve()
