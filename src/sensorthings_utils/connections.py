@@ -81,10 +81,10 @@ def _init_credentials(
     if not credentials_file.exists():
         credentials_file.parent.mkdir(parents=True, exist_ok=True)
         credentials_file.touch(exist_ok=True)
-        logging.info(".credentials file created.")
+        logging.info(f"{application_name}.{sensor_type}.credentials file created.")
         new_credential_file = True
     else:
-        logging.info(f"{credentials_file} file exists.")
+        logging.info(f"{application_name}.{sensor_type}.credentials exists.")
         new_credential_file = False
     # new credential file and an .env exists (outside container environment)
     # so write the credentials from env.
@@ -107,7 +107,7 @@ def _init_credentials(
         credentials = json.dumps(all_credentials_json.get(application_name))
         with open(credentials_file, "w") as f:
             f.write(format_override(credentials))
-            logging.info(f"wrote credentials to .{sensor_type}.credentials file.")
+            logging.info(f"wrote credentials to {application_name}.{sensor_type}.credentials file.")
             return credentials_file
     # if a new credential file was made and .env does not exist (for container
     # enviornments) then we assume they're already loaded up, otherwise
@@ -124,7 +124,7 @@ def _init_credentials(
         credentials = json.dumps(all_credentials_json.get(application_name))
         with open(credentials_file, "w") as f:
             f.write(format_override(credentials))
-            logging.info(f"wrote credentials to .{sensor_type}.credentials file.")
+            logging.info(f"wrote credentials to {application_name}.{sensor_type}.credentials file.")
             return credentials_file
     # if a credential file was already there and there is no env (for container
     # environments) then check if the credentials are there and use those
@@ -138,7 +138,7 @@ def _init_credentials(
                 + "Ensure key is in .env file!"
             )
         logging.info(
-            f"{sensor_type}.credentials exist and no new .env was passed. "
+            f"{application_name}.{sensor_type}.credentials exist and no new .env was passed. "
             + "Using existing."
         )
         return credentials_file
@@ -164,10 +164,10 @@ def _init_credentials(
         credentials = json.dumps(credentials_json)
         with open(credentials_file, "w") as f:
             f.write(format_override(credentials))
-            logging.info(f"wrote credentials to .{sensor_type}.credentials file.")
+            logging.info(f"wrote credentials to {application_name}.{sensor_type}.credentials file.")
             return credentials_file
     else:
-        logging.info(f"{credentials_file} is newer than .env, using existing credentials.")
+        logging.info(f"{application_name}.{sensor_type}.credentials is newer than .env, using existing credentials.")
         return credentials_file
 
 
@@ -194,6 +194,18 @@ class CredentialedHTTPSensorConnection(ABC):
         self.interval = interval 
         self._thread = None
         self._stop_event = threading.Event()
+
+    def __hash__(self) -> int:
+        return hash(self.application_name)
+
+    def __eq__(self, other) -> bool:
+
+        if not isinstance(other, CredentialedHTTPSensorConnection):
+            return False
+        if other.application_name == self.application_name:
+            return True
+        else:
+            return False
 
     @cached_property
     @abstractmethod
@@ -222,13 +234,13 @@ class CredentialedHTTPSensorConnection(ABC):
 
     def start(self):
         if self._thread is None or not self._thread.is_alive():
-            self._thread = threading.Thread(target=self._loop, daemon=True)
+            self._thread = threading.Thread(target=self._loop, daemon=True, name=self.application_name)
             self._thread.start()
 
     def stop(self):
         self._stop_event.set()
         if self._thread:
-            self._thread.join()
+            self._thread.join(5)
 
     def _loop(self):
         while not self._stop_event.is_set():
@@ -236,7 +248,8 @@ class CredentialedHTTPSensorConnection(ABC):
                 self.retrieve()
                 time.sleep(self.interval)
             except Exception as e:
-                logging.error(f"Error with {self.application_name}: {e}")
+                logging.error(f"Error with {self.application_name}: {e}", exc_info=True)
+                self.stop()
 
 
 class CredentialedMQTTSensorConnection(ABC):
@@ -260,6 +273,17 @@ class CredentialedMQTTSensorConnection(ABC):
         self.subscribed: bool = False
         self._thread = None
         self._stop_event = threading.Event()
+
+    def __hash__(self) -> int:
+        return hash(self.application_name)
+
+    def __eq__(self, other) -> bool:
+        if not isinstance(other, CredentialedMQTTSensorConnection):
+            return False
+        if other.application_name == self.application_name:
+            return True
+        else:
+            return False
 
     @cached_property
     @abstractmethod
@@ -293,13 +317,13 @@ class CredentialedMQTTSensorConnection(ABC):
 
     def start(self):
         if self._thread is None or not self._thread.is_alive():
-            self._thread = threading.Thread(target=self._loop, daemon=True)
+            self._thread = threading.Thread(target=self._loop, daemon=True, name=self.application_name)
             self._thread.start()
 
     def stop(self):
         self._stop_event.set()
         if self._thread:
-            self._thread.join()
+            self._thread.join(5)
 
     def _loop(self):
         while not self._stop_event.is_set():
@@ -342,6 +366,7 @@ class NetatmoConnection(CredentialedHTTPSensorConnection):
             self.credentials_dir,
             self.env_file,
         )
+        logging.info(f"{netatmo_credentials_file=}")
         with open(netatmo_credentials_file, "r") as f:
             netatmo_credentials = json.load(f)
         try:

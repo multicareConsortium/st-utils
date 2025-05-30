@@ -10,10 +10,10 @@ import logging
 from sensorthings_utils.config import SENSOR_CONFIG_FILES
 from sensorthings_utils import netatmo
 from sensorthings_utils.sensor_things.extensions import (
-    SensorArrangementMap,
+    SensorConfig,
     SensorArrangement,
 )
-from sensorthings_utils.frost import initial_setup
+import sensorthings_utils.frost as frost
 from sensorthings_utils.connections import NetatmoConnection, TTSConnection
 
 logging.basicConfig(
@@ -22,29 +22,32 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 
-def stream_available(exclude: List[str] | None = None, applications: List[str] | None = None) -> None:
+def stream_available(exclude: List[str] = ['']) -> None:
     logging.info("Sensor stream starts in 30s.")
-    time.sleep(3)
+    time.sleep(1)
     sensor_streams = set() 
-    # commented out until SensorArrangementMap is ready
-    # for f in SENSOR_CONFIG_FILES:
-    #    sensor_arrangement_map = SensorArrangementMap(f)
-    #    sensor_arrangement = SensorArrangement(sensor_arrangement_map)
-    #    sensor_model = initial_setup(sensor_arrangement)
-        # TODO: implement application info in SensorArrangementMap
-        # application_name = sensor_arrangement.application_name 
-        # application_host = sensor_arrangement.application_hist
-    # This data is UNCONVERTED.
-    for sensor_model in ["netatmo", "milesight-tts"]:
-        match sensor_model:
-            case "netatmo":
-                #TODO: connections need to be hashable for sets
-                sensor_streams.add(NetatmoConnection(application_name="tudelft-dt"))
-            case "milesight-tts":
-                sensor_streams.add(TTSConnection(application_name="multicare-bucharest@ttn", mqtt_host="eu1.cloud.thethings.network"))
-                sensor_streams.add(TTSConnection(application_name="multicare-acerra@ttn", mqtt_host="eu1.cloud.thethings.network"))
-    for connection in sensor_streams:
+    for f in SENSOR_CONFIG_FILES:
+        if f.name in exclude:
+            continue
+        sensor_config = SensorConfig(f)
+        sensor_arrangement = SensorArrangement(sensor_config)
+        application_name = sensor_arrangement.application_name 
+        host = sensor_arrangement.host
+        sensor_name = sensor_config.sensor_model 
+        logging.info(f"{application_name=}, {host=}, {sensor_name=}")
+        frost.initial_setup(sensor_arrangement)
+        match sensor_name:
+            case "netatmo_nsw03":
+                sensor_streams.add(NetatmoConnection(application_name))
+            case "milesight_tts":
+                if not host:
+                    raise ValueError(f"Expected a host for the MQTT sensor: {sensor_name}")
+                sensor_streams.add(TTSConnection(application_name="multicare-bucharest@ttn", mqtt_host=host))
+    logging.info(f"{len(set(sensor_streams))}")
+    for connection in set(sensor_streams):
         connection.start()
+
+    logging.info(f"Started {threading.active_count()} threads: {[i.name for i in threading.enumerate()]}")
     
     try:
         while True:
@@ -53,6 +56,8 @@ def stream_available(exclude: List[str] | None = None, applications: List[str] |
         for conn in sensor_streams:
             logging.info(f"Stopping thread for {conn.application_name}")
             conn.stop()
+
+    logging.info("Successfully shutdown connections.")
 
 if __name__ == "__main__":
    stream_available() 

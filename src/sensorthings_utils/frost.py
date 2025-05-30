@@ -144,19 +144,21 @@ def initial_setup(sensor_arrangement: "SensorArrangement") -> str:
     for ds in sensor_arrangement.get_entities("Datastream"):
         # Lookup the names's of the relevant Sensor, ObservedProperty and Thing:
         sen_name = ds.iot_links["sensors"][0].name  # only 1 object in list
+        logging.info(f"{sen_name=}")
         oprop_name = ds.iot_links["observedProperties"][0].name
         thing_name = ds.iot_links["things"][0].name
         # Query server and lookup ids:
         sen_id = filter_query(
-            entity="/Sensors", filter_string=f"name eq '{sen_name}'", url=None
+            entity="/Sensors", filter_string=f"name eq '{sen_name}'", url=None, container_environment=CONTAINER_ENVIRONMENT
         )["value"][0]["@iot.id"]  # type: ignore
         oprop_id = filter_query(
             entity="/ObservedProperties",
             filter_string=f"name eq '{oprop_name}'",
             url=None,
+            container_environment=CONTAINER_ENVIRONMENT
         )["value"][0]["@iot.id"]  # type: ignore
         thing_id = filter_query(
-            entity="/Things", filter_string=f"name eq '{thing_name}'", url=None
+            entity="/Things", filter_string=f"name eq '{thing_name}'", url=None, container_environment=CONTAINER_ENVIRONMENT
         )["value"][0]["@iot.id"]  # type: ignore
         make_frost_datastream(
             ds,
@@ -168,7 +170,9 @@ def initial_setup(sensor_arrangement: "SensorArrangement") -> str:
 
 
 def make_frost_object(
-    entity: "SensorThingsObject", iot_url: str | None = None
+    entity: "SensorThingsObject",
+    iot_url: str | None = None,
+    frost_endpoint: str = FROST_ENDPOINT
 ) -> Dict[str, str]:
     """
     Add a a SensorThingsObject to the FROST server, return FROST IoT Link.
@@ -190,7 +194,7 @@ def make_frost_object(
     }
 
     expected_links = expected_links_map[entity.st_type]
-    url = iot_url or (FROST_ENDPOINT + ENTITY_ENDPOINTS[entity.st_type])
+    url = iot_url or (frost_endpoint + ENTITY_ENDPOINTS[entity.st_type])
     if CONTAINER_ENVIRONMENT:
         url = url.replace("localhost", "web")
     post_request = request.Request(
@@ -207,9 +211,9 @@ def make_frost_object(
             new_object_url = response.getheader(
                 "Location"
             )  # "Location" does not refer to a SensorThings Location
-            logger.info(f"New {entity.st_type} created at {new_object_url}")
+            logging.info(f"New {entity.st_type} created at {new_object_url}")
     except error.HTTPError as e:
-        logger.critical(f"{e} {e.read()}")
+        logging.critical(f"{e} {e.read()}")
         return {}
     if CONTAINER_ENVIRONMENT:
         new_object_url = new_object_url.replace("localhost", "web")
@@ -247,6 +251,6 @@ def make_frost_datastream(
             new_object_url = response.getheader(
                 "Location"
             )  # "Location" does not refer to a SensorThings Location
-            logger.info(f"New Datastream created at {new_object_url}")
+            logging.info(f"New Datastream created at {new_object_url}")
     except error.HTTPError as e:
-        logger.critical(f"{e} {e.read()}")
+        logging.critical(f"{e} {e.read()}")
