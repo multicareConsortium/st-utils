@@ -9,10 +9,8 @@ from typing import List, Dict, Any, Generator, Tuple
 from .sensor_things.core import Observation
 from .config import CONTAINER_ENVIRONMENT
 from sensorthings_utils.frost import filter_query, make_frost_object
-from .connections import NetatmoConnection
 
-logger = logging.getLogger("netatmo")
-
+logger = logging.getLogger(__name__)
 
 def _filter(
     payload: List[Dict[str, Any]],
@@ -32,12 +30,12 @@ def _filter(
     """
     data = {}
     if not payload[0]:
-        logging.critical("No netatmo data returned.")
+        logger.critical("No netatmo data returned.")
     if exclude:
        payload = [i for i in payload if i["_id"] not in exclude] 
     for item in payload:
         if item["reachable"] == False:
-            logging.info(f"Netatmo Station {item["_id"]} is unreachable.")
+            logger.critical(f"Netatmo Station {item["_id"]} is unreachable.")
             return data
         station_id = item["_id"]
         dashboard_data = item["dashboard_data"]
@@ -69,22 +67,14 @@ def _transform(data: Dict[str, Any]) -> Generator[Tuple[Any, ...]]:
         yield (sensor_name, datastream_name, result_time, result_value)  # type: ignore
 
 
-def stream(
-        netatmo_connection: NetatmoConnection,
+def frost_upload(
+        payload: List[Dict[str, Any]],
         exclude: List[str] | None = None,
         sleep_time: int = 240
     ) -> None:
     """Extract, transform and load Netatmo devices linked to your account."""
-<<<<<<< HEAD
-    payload = netatmo_connection.retrieve()
     for station in _filter(payload, exclude).values():
         observation_stream = _transform(station)
-=======
-    for data in _extract().values():
-        if not data:
-            logging.info(f"No data.")
-        observation_stream = _transform(data)
->>>>>>> origin/main
         for o in observation_stream:
             sensor_name = o[0]
             datastream_name = o[1]
@@ -106,6 +96,7 @@ def stream(
                     entity=None,
                     filter_string=f"name eq '{datastream_name}'",
                     url=sensor_datastreams,
+                    container_environment=CONTAINER_ENVIRONMENT
                 )  # type: ignore
 
                 push_link = datastream["value"][0]["Observations@iot.navigationLink"]
@@ -115,7 +106,7 @@ def stream(
                 )
                 observation = make_frost_object(observation, push_link)
             except IndexError:
-                logging.critical(
+                logger.critical(
                     f"Failure adding observation/s for {sensor_name}. Has the datastream been set up?"
                 )
                 break

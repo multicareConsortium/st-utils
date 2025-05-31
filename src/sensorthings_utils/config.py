@@ -11,17 +11,6 @@ import dotenv
 # internal
 from lnetatmo import ClientAuth
 
-# logging
-
-# logging setup
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s: %(levelname)s - %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-)
-logger = logging.getLogger("netatmo")
-
-
 # directory setup
 ROOT_DIR = Path(__file__).parent.parent.parent
 CONFIG_PATHS = ROOT_DIR / "sensor_configs"

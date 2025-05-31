@@ -21,6 +21,8 @@ from sensorthings_utils.sensor_things.core import Datastream, SensorThingsObject
 if TYPE_CHECKING:
     from sensorthings_utils.sensor_things.extensions import SensorArrangement
 
+logger = logging.getLogger(__name__)
+
 ENTITY_ENDPOINTS: Dict[str, str] = {
     "Sensor": "/Sensors",
     "Datastream": "/Datastreams",
@@ -110,7 +112,7 @@ def filter_query(
             response = json.loads(response.read())
             return response
     except error.HTTPError as e:
-        logging.critical(f"{e} {e.read()}")
+        logger.critical(f"{e} {e.read()}")
         return {}
 
 
@@ -144,7 +146,6 @@ def initial_setup(sensor_arrangement: "SensorArrangement") -> str:
     for ds in sensor_arrangement.get_entities("Datastream"):
         # Lookup the names's of the relevant Sensor, ObservedProperty and Thing:
         sen_name = ds.iot_links["sensors"][0].name  # only 1 object in list
-        logging.info(f"{sen_name=}")
         oprop_name = ds.iot_links["observedProperties"][0].name
         thing_name = ds.iot_links["things"][0].name
         # Query server and lookup ids:
@@ -181,6 +182,10 @@ def make_frost_object(
     the object FROST URL (i.e., links the passed object to the the object) in
     the IoT URL.
     """
+    
+    if check_existing_object(entity, CONTAINER_ENVIRONMENT):
+        logger.info(f"Creation Skipped: {entity.st_type} {entity.name} already exists.")
+        return {}
 
     expected_links_map: Dict[str, Tuple[str, ...]] = {
         "Sensor": ("Datastreams",),
@@ -211,9 +216,9 @@ def make_frost_object(
             new_object_url = response.getheader(
                 "Location"
             )  # "Location" does not refer to a SensorThings Location
-            logging.info(f"New {entity.st_type} created at {new_object_url}")
+            logger.info(f"New {entity.st_type} created at {new_object_url}")
     except error.HTTPError as e:
-        logging.critical(f"{e} {e.read()}")
+        logger.critical(f"{e} {e.read()}")
         return {}
     if CONTAINER_ENVIRONMENT:
         new_object_url = new_object_url.replace("localhost", "web")
@@ -232,7 +237,7 @@ def make_frost_datastream(
     entity: "Datastream", sensor_id: int, thing_id: int, observed_property_id: int
 ) -> None:
     if check_existing_object(entity, CONTAINER_ENVIRONMENT):
-        logging.info(f"Creation Skipped: object {entity.st_type} already exists.")
+        logger.info(f"Creation Skipped: {entity.st_type} {entity.name} already exists.")
         return None
     url = FROST_ENDPOINT + "/Datastreams"
     data = entity.model_dump(exclude={"iot_links", "id", "st_type"})
@@ -251,6 +256,6 @@ def make_frost_datastream(
             new_object_url = response.getheader(
                 "Location"
             )  # "Location" does not refer to a SensorThings Location
-            logging.info(f"New Datastream created at {new_object_url}")
+            logger.info(f"New Datastream created at {new_object_url}")
     except error.HTTPError as e:
-        logging.critical(f"{e} {e.read()}")
+        logger.critical(f"{e} {e.read()}")

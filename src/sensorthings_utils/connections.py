@@ -19,9 +19,11 @@ import lnetatmo
 from paho.mqtt.client import Client as mqttClient
 
 # internal
-from .config import ROOT_DIR
+from .config import FROST_ENDPOINT, ROOT_DIR
+from .netatmo import frost_upload
 
 # environment setup
+logger = logging.getLogger(__name__)
 CONTAINER_ENVIRONMENT = True if os.getenv("CONTAINER_ENVIRONMENT") else False
 # type definitions
 SingleAppCredentialFile = Path
@@ -81,10 +83,10 @@ def _init_credentials(
     if not credentials_file.exists():
         credentials_file.parent.mkdir(parents=True, exist_ok=True)
         credentials_file.touch(exist_ok=True)
-        logging.info(f"{application_name}.{sensor_type}.credentials file created.")
+        logger.info(f"{application_name}.{sensor_type}.credentials file created.")
         new_credential_file = True
     else:
-        logging.info(f"{application_name}.{sensor_type}.credentials exists.")
+        logger.info(f"{application_name}.{sensor_type}.credentials exists.")
         new_credential_file = False
     # new credential file and an .env exists (outside container environment)
     # so write the credentials from env.
@@ -92,7 +94,7 @@ def _init_credentials(
         # flush out environment variables currently loaded into the .env
         # this is mostly a testing issue.
         os.environ.pop(f"{sensor_type.upper()}_CREDENTIALS", None)
-        logging.info(
+        logger.info(
             f"Environment exists, loading variables and writing to credentials."
         )
         dotenv.load_dotenv(env)
@@ -103,11 +105,11 @@ def _init_credentials(
                 + "Cannot pass malformed or incomplete .env files."
             )
         all_credentials_json = json.loads(all_credentials)
-        logging.debug(f"{all_credentials_json}")
+        logger.debug(f"{all_credentials_json}")
         credentials = json.dumps(all_credentials_json.get(application_name))
         with open(credentials_file, "w") as f:
             f.write(format_override(credentials))
-            logging.info(f"wrote credentials to {application_name}.{sensor_type}.credentials file.")
+            logger.info(f"wrote credentials to {application_name}.{sensor_type}.credentials file.")
             return credentials_file
     # if a new credential file was made and .env does not exist (for container
     # enviornments) then we assume they're already loaded up, otherwise
@@ -120,11 +122,11 @@ def _init_credentials(
                 + "env file and container variable."
             )
         all_credentials_json = json.loads(all_credentials)
-        logging.debug(f"{all_credentials_json}")
+        logger.debug(f"{all_credentials_json}")
         credentials = json.dumps(all_credentials_json.get(application_name))
         with open(credentials_file, "w") as f:
             f.write(format_override(credentials))
-            logging.info(f"wrote credentials to {application_name}.{sensor_type}.credentials file.")
+            logger.info(f"wrote credentials to {application_name}.{sensor_type}.credentials file.")
             return credentials_file
     # if a credential file was already there and there is no env (for container
     # environments) then check if the credentials are there and use those
@@ -137,7 +139,7 @@ def _init_credentials(
                 f"Newer environment file found, but {sensor_type.capitalize()} not found. "
                 + "Ensure key is in .env file!"
             )
-        logging.info(
+        logger.info(
             f"{application_name}.{sensor_type}.credentials exist and no new .env was passed. "
             + "Using existing."
         )
@@ -148,7 +150,7 @@ def _init_credentials(
     elif not new_credential_file and os.path.getmtime(env) > os.path.getmtime(
         credentials_file
     ):
-        logging.info(
+        logger.info(
             ".env file is newer than .credentials. " + "Checking for credentials."
         )
         dotenv.load_dotenv(env)
@@ -160,20 +162,15 @@ def _init_credentials(
             )
         all_credentials_json = json.loads(all_credentials)
         credentials_json = all_credentials_json.get(application_name)
-        logging.debug(f"{all_credentials=}")
+        logger.debug(f"{all_credentials=}")
         credentials = json.dumps(credentials_json)
         with open(credentials_file, "w") as f:
             f.write(format_override(credentials))
-            logging.info(f"wrote credentials to {application_name}.{sensor_type}.credentials file.")
+            logger.info(f"wrote credentials to {application_name}.{sensor_type}.credentials file.")
             return credentials_file
     else:
-        logging.info(f"{application_name}.{sensor_type}.credentials is newer than .env, using existing credentials.")
+        logger.info(f"{application_name}.{sensor_type}.credentials is newer than .env, using existing credentials.")
         return credentials_file
-
-
-# logging setup
-logger = logging.getLogger("connections")
-
 
 class CredentialedHTTPSensorConnection(ABC):
     """
@@ -228,13 +225,18 @@ class CredentialedHTTPSensorConnection(ABC):
         pass
 
     @abstractmethod
-    def retrieve(self) -> Any:
+    def retrieve(self, push:bool = False) -> Any:
         """Retrieve 'raw' data from a sensor connection."""
         pass
 
-    def start(self):
+    def start(self, push: bool = False):
         if self._thread is None or not self._thread.is_alive():
-            self._thread = threading.Thread(target=self._loop, daemon=True, name=self.application_name)
+            self._thread = threading.Thread(
+                    target=self._loop,
+                    args=(push,),
+                    daemon=True, 
+                    name=self.application_name
+                )
             self._thread.start()
 
     def stop(self):
@@ -242,13 +244,13 @@ class CredentialedHTTPSensorConnection(ABC):
         if self._thread:
             self._thread.join(5)
 
-    def _loop(self):
+    def _loop(self, push: bool):
         while not self._stop_event.is_set():
             try:
-                self.retrieve()
+                self.retrieve(push)
                 time.sleep(self.interval)
             except Exception as e:
-                logging.error(f"Error with {self.application_name}: {e}", exc_info=True)
+                logger.error(f"Error with {self.application_name}: {e}", exc_info=True)
                 self.stop()
 
 
@@ -330,7 +332,7 @@ class CredentialedMQTTSensorConnection(ABC):
             try:
                 self.retrieve()
             except Exception as e:
-                logging.error(f"Error with {self.application_name}: {e}")
+                logger.error(f"Error with {self.application_name}: {e}")
 
 class NetatmoConnection(CredentialedHTTPSensorConnection):
     """
@@ -366,7 +368,6 @@ class NetatmoConnection(CredentialedHTTPSensorConnection):
             self.credentials_dir,
             self.env_file,
         )
-        logging.info(f"{netatmo_credentials_file=}")
         with open(netatmo_credentials_file, "r") as f:
             netatmo_credentials = json.load(f)
         try:
@@ -386,8 +387,11 @@ class NetatmoConnection(CredentialedHTTPSensorConnection):
         """Return a netatmo authentication token."""
         return lnetatmo.ClientAuth(credentialFile=self._credentials)
 
-    def retrieve(self) -> List[Dict[str, Any]]: #type: ignore
-        """Retrieve the latest observation set (one or more) from the Netatmo API."""
+    def retrieve(
+            self, 
+            push: bool=False
+        ) -> List[Dict[str, Any]] | None: #type: ignore
+        """Retrieve the latest untransformed observation set (one or more) from the Netatmo API."""
         attempt = 0
         while attempt < self.max_connection_retries:
             try:
@@ -398,20 +402,25 @@ class NetatmoConnection(CredentialedHTTPSensorConnection):
                             "Netatmo Payload for Sensor " +
                             f"{self.application_name} is empty."
                             )
-                logging.info(f"Received payload from {self.application_name}")
-                return payload 
+                logger.info(f"Received payload from {self.application_name} from {len(payload)} sensors.")
+                if push:
+                    frost_upload(payload)
+                    return None
+                else:
+                    return payload 
             # catching a type error is not strictly correct, see
             # PR: https://github.com/philippelt/netatmo-api-python/pull/100
             except (TimeoutError, TypeError) as e:
                 attempt += 1
-                logging.info(
+                logger.info(
                     "Netatmo time-out error, waiting and establishing new connection. "
                     + f"Retrying attempt {attempt} of {self.max_connection_retries}."
                     + f"Error raised: {e}"
                 )
                 time.sleep(30)
                 return list(dict()) 
-        logging.critical(f"Netatmo sensor link down - NO DATA BEING COLLECTED.")
+        logger.critical(f"Netatmo sensor link down - NO DATA BEING COLLECTED.")
+    
 
 
 class TTSConnection(CredentialedMQTTSensorConnection):
@@ -480,7 +489,7 @@ class TTSConnection(CredentialedMQTTSensorConnection):
 
         client.on_message = on_message
         client.connect(self.mqtt_host, self.mqtt_port)
-        logging.info(f"Connected to {self.mqtt_host}/{self.application_name}")
+        logger.info(f"Connected to {self.mqtt_host}/{self.application_name}")
         topic = f"v3/{self.application_name}/devices/+/up"
         client.subscribe(topic)
         self.subscribed = True
@@ -496,7 +505,7 @@ class TTSConnection(CredentialedMQTTSensorConnection):
             try:
                 payload_received = self.payload_queue.get(timeout=timeout)
                 attempts = 0 if payload_received else attempts
-                logging.info(f"Received payload from {self.application_name}")
+                logger.info(f"Received payload from {self.application_name}")
                 return payload_received
             except queue.Empty:
                 attempts += 1
