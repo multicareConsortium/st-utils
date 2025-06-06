@@ -5,7 +5,7 @@ Extensions and wrappers to facilitate OGC SensorThings compliant implementations
 # standard
 from typing import Dict, List, Any, Type, Literal, Optional, Tuple, TYPE_CHECKING
 from pathlib import Path
-
+import logging
 # external
 import yaml
 
@@ -26,6 +26,7 @@ if TYPE_CHECKING:
 
 __all__ = ["SensorConfig", "SensorArrangement"]
 
+logger = logging.getLogger(__name__)
 
 class SensorConfig:
     """
@@ -38,9 +39,10 @@ class SensorConfig:
 
     def __init__(self, filepath: Path) -> None:
         self._filepath = filepath
-        self._data: Dict[str, Any] = self._validate_structure(self._load())
+        self._data: Dict[str, Any] = self._load()
         # public:
         self.sensor_model = self["networkMetadata"]["sensor_model"] 
+        self.data = self.validate()
 
     def _load(self) -> Dict:
         with open(self._filepath, "r") as file:
@@ -50,16 +52,135 @@ class SensorConfig:
     def __getitem__(self, key) -> Any:
         return self._data.get(key)
 
-    def _validate_structure(self, data: Dict) -> Dict:
-        """Validating the data-structure of a config file"""
-        expected_keys = set(SENSOR_THINGS_OBJECTS + ["networkMetadata"])
-        if set(data.keys()) != expected_keys:
-            raise ValueError(
-                f"Invalid configuration file keys: {data.keys()} does not match + "
-                f"{SENSOR_THINGS_OBJECTS}, networkMetadata."
-            )
-        return data
+    def validate(self) -> Dict[str, Any]:
+        unvalidated_data = self._load()
+        if not all(
+                [self._validate_sensor_name(unvalidated_data),
+                 self._validate_entity_contents(unvalidated_data),
+                 self._validate_linking_sensor(unvalidated_data)]
+                ):
+            logger.error(f"{self._filepath.name} is an invalid config.")
+            #TODO: And?
+        valid_data = unvalidated_data
+        return valid_data
 
+    def _validate_sensor_name(self, uv_data: Dict) -> bool:
+        """Validate sensor key and sensor name (attribute) matches."""
+
+        sensor_config = uv_data.get("sensors")
+        if sensor_config is None:
+            logger.error(f"No 'sensors' key in SensorConfig {self._filepath.name}.")
+            return False
+
+        sensor_key = next(iter(sensor_config))
+        sensor_name = sensor_config.get(sensor_key).get("name")
+
+        if len(sensor_config) != 1:
+            logger.error(f"SensorConfig {self._filepath.name} should have exactly one sensor.")
+            return False
+        if sensor_key != sensor_name:
+            logger.error(f"SensorConfig {self._filepath.name}'s name ({sensor_name}) does not match its primary key {sensor_key}.")
+            return False
+
+        return True
+
+    def _validate_entity_contents(self, unvalidated_data:Dict) -> bool:
+        "Check that primary sensor things keys are there, and that the contents are as expected."
+        expected_classes = [
+                "sensors",
+                "things",
+                "locations",
+                "datastreams",
+                "observedProperties",
+                ] 
+        expected_class_fields = {
+                "sensors": {
+                    "name":str,
+                    "description":(str, dict),
+                    "properties":(str, dict),
+                    "encodingType":str,
+                    "metadata":str,
+                    "iot_links":dict
+                    },
+                "things": {
+                    "name": str,
+                    "description": str,
+                    "properties": (str, type(None)),
+                    "iot_links": dict
+                    },
+                "locations": {
+                    "name":str,
+                    "description":str,
+                    "properties": (str, type(None)),
+                    "encodingType": str,
+                    "location":dict,
+                    "iot_links":dict
+                    },
+                "datastreams": {
+                    "name": str, "description": str, 
+                    "observationType": str,
+                    "unitOfMeasurement":dict,
+                    "observedArea":dict,
+                    "phenomenon_time": (str, type(None)),
+                    "result_time": (str, type(None)),
+                    "properties": (dict, type(None)),
+                    "iot_links": dict
+                    },
+                "observedProperties": {
+                    "name":str,
+                    "definition":str,
+                    "description":str,
+                    "properties": (str, type(None))
+                    },
+                }
+        # entity is going to be sensors, things, locations, etc.
+        invalid = False 
+        for cls in expected_classes:
+            if (actual_entity:= unvalidated_data.get(cls)) is None:
+                logger.error(f"Missing primary key: {cls}. Will not continue with validation.")
+                return False
+            # item is going to be each entry, e.g., 70:33:50.. (sensor), "apartment" (location)
+            expected_field_keys = set(expected_class_fields[cls].keys())
+            for field_key in actual_entity: 
+                actual_field_keys = set(actual_entity[field_key].keys())
+                missing_field_keys= expected_field_keys - actual_field_keys
+                extra_field_keys = actual_field_keys - expected_field_keys
+                if missing_field_keys:
+                    logger.error(
+                            f"{cls}.{field_key} has missing keys: {missing_field_keys}."
+                            )
+                    invalid = True
+                if extra_field_keys:
+                    logger.error(
+                            f"{cls}.{field_key} has extra keys: {extra_field_keys}."
+                            )
+                    invalid = True
+                for field in actual_entity[field_key]:
+                    expected_type = expected_class_fields[cls][field]
+                    if not isinstance(
+                            actual_entity[field_key][field],
+                            expected_type
+                            ):
+                        logger.error(
+                                f"{cls}.{field_key}.{field} is of the wrong type "
+                                + f"expected {expected_type}, got {type(actual_entity[field_key][field])}"
+                                )
+                        invalid = True
+
+        return True if not invalid else False
+
+    def _validate_linking_sensor(self, unvalidated_data:Dict[str, Dict[str, Any]]) -> bool:
+        """Sensor name should be present in each datastream."""
+        sensor_name = next(iter(unvalidated_data["sensors"]))
+        passed_datastreams = unvalidated_data["datastreams"]
+        for datastream in passed_datastreams:
+            datastream_contents = passed_datastreams[datastream]
+            if datastream_contents["iot_links"]["sensors"][0] != sensor_name:
+                logger.error(f"{self._filepath.name}'s {datastream} is missing reference to {sensor_name}.")
+                return False
+
+        return True
+        
 
 class SensorArrangement:
     """
