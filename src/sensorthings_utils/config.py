@@ -15,6 +15,7 @@ from lnetatmo import ClientAuth
 ROOT_DIR = Path(__file__).parent.parent.parent
 CONFIG_PATHS = ROOT_DIR / "sensor_configs"
 ENV_FILE = ROOT_DIR / ".env"
+TEST_DATA_DIR = ROOT_DIR / "tests" / "sensorthings_utils" / "data"
 
 # environment set up
 # use of `or` to set defaults for env variables when not set in a docker-compose or .env

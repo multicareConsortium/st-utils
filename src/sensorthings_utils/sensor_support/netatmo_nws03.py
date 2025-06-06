@@ -6,9 +6,9 @@ import time
 from typing import List, Dict, Any, Generator, Tuple
 
 # internal
-from .sensor_things.core import Observation
-from .config import CONTAINER_ENVIRONMENT
-from sensorthings_utils.frost import filter_query, make_frost_object
+from ..sensor_things.core import Observation
+from ..config import CONTAINER_ENVIRONMENT
+from sensorthings_utils.frost import filter_query, make_frost_object, find_datastream_url
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +70,6 @@ def _transform(data: Dict[str, Any]) -> Generator[Tuple[Any, ...]]:
 def frost_upload(
         payload: List[Dict[str, Any]],
         exclude: List[str] | None = None,
-        sleep_time: int = 240
     ) -> None:
     """Extract, transform and load Netatmo devices linked to your account."""
     for station in _filter(payload, exclude).values():
@@ -80,34 +79,17 @@ def frost_upload(
             datastream_name = o[1]
             phenomenon_time = o[2]
             result = o[3]
-
-            sensor_datastreams = filter_query(
-                entity="/Sensors",
-                filter_string=f"name eq '{sensor_name}'",
-                url=None,
-                container_environment=CONTAINER_ENVIRONMENT,
-            )
-            try:
-                sensor_datastreams = sensor_datastreams["value"][0][
-                    "Datastreams@iot.navigationLink"
-                ]  # url of datastreams #type: ignore
-
-                datastream = filter_query(
-                    entity=None,
-                    filter_string=f"name eq '{datastream_name}'",
-                    url=sensor_datastreams,
-                    container_environment=CONTAINER_ENVIRONMENT
-                )  # type: ignore
-
-                push_link = datastream["value"][0]["Observations@iot.navigationLink"]
-                observation = Observation(
+            push_link = find_datastream_url(
+                    sensor_name, datastream_name, CONTAINER_ENVIRONMENT
+                    )
+            observation = Observation(
                     result=result,
                     phenomenonTime=phenomenon_time,
                 )
-                observation = make_frost_object(observation, push_link)
-            except IndexError:
+            try:
+                make_frost_object(observation, push_link)
+            except Exception as e:
                 logger.critical(
-                    f"Failure adding observation/s for {sensor_name}. Has the datastream been set up?"
+                        f"Failure adding observation/s for {sensor_name}. Has the datastream been set up? Error: {e}"
                 )
                 break
-    time.sleep(sleep_time)

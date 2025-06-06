@@ -4,11 +4,9 @@
 import urllib.request as request
 from urllib.parse import quote
 from urllib import error
-from typing import Dict, Tuple, TYPE_CHECKING
+from typing import Dict, Tuple, Any, Union, TYPE_CHECKING
 import json
 import logging
-
-# external
 
 # internal
 from sensorthings_utils.config import (
@@ -16,10 +14,13 @@ from sensorthings_utils.config import (
     FROST_ENDPOINT,
     FROST_CREDENTIALS,
 )
-from sensorthings_utils.sensor_things.core import Datastream, SensorThingsObject
+from sensorthings_utils.sensor_things.core import Datastream, SensorThingsObject, Observation
 
+# typing
 if TYPE_CHECKING:
     from sensorthings_utils.sensor_things.extensions import SensorArrangement
+
+UrlStr = str
 
 logger = logging.getLogger(__name__)
 
@@ -83,9 +84,10 @@ def check_existing_object(
     return False
 
 
+#TODO: Consider type overloads for return.
 def filter_query(
     filter_string: str, entity: str | None, url: str | None, container_environment: bool
-) -> Dict[str, str]:
+) -> Dict[str, Any]:
     """
     Query the FROST server and return result.
 
@@ -171,7 +173,7 @@ def initial_setup(sensor_arrangement: "SensorArrangement") -> str:
 
 
 def make_frost_object(
-    entity: "SensorThingsObject",
+    entity: Union["SensorThingsObject", "Observation"],
     iot_url: str | None = None,
     frost_endpoint: str = FROST_ENDPOINT
 ) -> Dict[str, str]:
@@ -259,3 +261,40 @@ def make_frost_datastream(
             logger.info(f"New Datastream created at {new_object_url}")
     except error.HTTPError as e:
         logger.critical(f"{e} {e.read()}")
+
+def find_datastream_url(
+        sensor_name: str,
+        datastream_name: str,
+        container_environment: bool,
+        ) -> UrlStr:
+
+    """Query the FROST server, find the push URL associated with the passed sensor_name and datastream name."""
+    frost_sensors = filter_query(
+        entity="/Sensors",
+        filter_string=f"name eq '{sensor_name}'",
+        url=None,
+        container_environment=container_environment,
+    )
+    try:
+        # url to datastreams associated with sensor.
+        sensor_datastream_url = frost_sensors["value"][0][
+            "Datastreams@iot.navigationLink"
+        ]
+        # query with the datastreams url to return the datastream with
+        # the same name as <datastream_name>
+        datastream = filter_query(
+            entity=None,
+            filter_string=f"name eq '{datastream_name}'",
+            url=sensor_datastream_url,
+            container_environment=CONTAINER_ENVIRONMENT
+        )  
+
+        push_link = datastream["value"][0]["Observations@iot.navigationLink"]
+        return push_link
+    except KeyError as e:
+        raise KeyError(f"Could not find push-link: {e}")
+        observation = Observation(
+            result=result,
+            phenomenonTime=phenomenon_time,
+        )
+        observation = make_frost_object(observation, push_link)

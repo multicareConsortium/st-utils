@@ -8,7 +8,6 @@ import logging
 
 # internal
 from sensorthings_utils.config import SENSOR_CONFIG_FILES, FROST_ENDPOINT
-from sensorthings_utils import netatmo
 from sensorthings_utils.sensor_things.extensions import (
     SensorConfig,
     SensorArrangement,
@@ -33,6 +32,9 @@ def push_available(exclude: List[str] = ['']) -> None:
         if f.name in exclude:
             continue
         sensor_config = SensorConfig(f)
+        if not sensor_config:
+            logger.error(f"{f} is an invalid sensor configuration file!")
+            continue
         sensor_arrangement = SensorArrangement(sensor_config)
         application_name = sensor_arrangement.application_name 
         host = sensor_arrangement.host

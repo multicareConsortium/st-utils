@@ -12,6 +12,12 @@ dependencies = [
     "pyyaml>=6.0.2",
 ]
 
+[project.scripts]
+stu = "sensorthings_utils.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
 [build-system]
 requires = ["setuptools"]
 build-backend = "setuptools.build_meta"

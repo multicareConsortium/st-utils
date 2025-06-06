@@ -37,8 +37,8 @@ class SensorConfig:
     configuration.
     """
 
-    def __init__(self, filepath: Path) -> None:
-        self._filepath = filepath
+    def __init__(self, filepath: str | Path) -> None:
+        self._filepath = Path(filepath)
         self._data: Dict[str, Any] = self._load()
         # public:
         self.sensor_model = self["networkMetadata"]["sensor_model"] 
@@ -57,10 +57,11 @@ class SensorConfig:
         if not all(
                 [self._validate_sensor_name(unvalidated_data),
                  self._validate_entity_contents(unvalidated_data),
-                 self._validate_linking_sensor(unvalidated_data)]
+                 self._validate_linking_sensor(unvalidated_data),
+                 self._validate_sensor_and_things_have_datastreams(unvalidated_data)]
                 ):
             logger.error(f"{self._filepath.name} is an invalid config.")
-            #TODO: And?
+            return {}
         valid_data = unvalidated_data
         return valid_data
 
@@ -180,6 +181,28 @@ class SensorConfig:
                 return False
 
         return True
+    
+    def _validate_sensor_and_things_have_datastreams(self, unvalidated_data: Dict[str, Dict[str,Any]]) -> bool:
+        """A sensor should have datastreams and these should be the same as the datastreams in the config."""
+        actual_datastreams = set(unvalidated_data["datastreams"])
+        invalid = False
+        for s in ["sensors", "things"]:
+            for entity in unvalidated_data[s]:
+                passed_datastreams = unvalidated_data[s][entity]["iot_links"]["datastreams"] 
+                if not isinstance(passed_datastreams, list):
+                    logger.error(f"{self._filepath.name}'s {s} entity has iot_links which are not a list.")
+                missing_datastreams = set(passed_datastreams) - actual_datastreams 
+                extra_datastreams = actual_datastreams - set(passed_datastreams)
+                if missing_datastreams:
+                    logger.error(f"{self._filepath.name}'s {s} entity is missing datastream keys: {missing_datastreams}.")
+                    invalid = True
+                if extra_datastreams:
+                    logger.error(f"{self._filepath.name}'s {s} entity is missing datastream keys: {extra_datastreams}.")
+                    invalid = True
+
+        return True if not invalid else False
+
+
         
 
 class SensorArrangement:

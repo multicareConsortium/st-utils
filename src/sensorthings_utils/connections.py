@@ -19,8 +19,8 @@ import lnetatmo
 from paho.mqtt.client import Client as mqttClient
 
 # internal
-from .config import FROST_ENDPOINT, ROOT_DIR
-from .netatmo import frost_upload
+from .config import ROOT_DIR
+from .sensor_support.netatmo_nws03 import frost_upload
 
 # environment setup
 logger = logging.getLogger(__name__)
@@ -389,7 +389,8 @@ class NetatmoConnection(CredentialedHTTPSensorConnection):
 
     def retrieve(
             self, 
-            push: bool=False
+            push: bool=False,
+            interval: int = 240
         ) -> List[Dict[str, Any]] | None: #type: ignore
         """Retrieve the latest untransformed observation set (one or more) from the Netatmo API."""
         attempt = 0
@@ -402,9 +403,10 @@ class NetatmoConnection(CredentialedHTTPSensorConnection):
                             "Netatmo Payload for Sensor " +
                             f"{self.application_name} is empty."
                             )
-                logger.info(f"Received payload from {self.application_name} from {len(payload)} sensors.")
+                logger.info(f"Received payload from Netatmo application {self.application_name} from {len(payload)} sensors.")
                 if push:
                     frost_upload(payload)
+                    time.sleep(interval)
                     return None
                 else:
                     return payload 
@@ -505,7 +507,7 @@ class TTSConnection(CredentialedMQTTSensorConnection):
             try:
                 payload_received = self.payload_queue.get(timeout=timeout)
                 attempts = 0 if payload_received else attempts
-                logger.info(f"Received payload from {self.application_name}")
+                logger.info(f"Received payload from TTS application: {self.application_name}")
                 return payload_received
             except queue.Empty:
                 attempts += 1
