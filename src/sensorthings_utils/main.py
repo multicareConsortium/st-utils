@@ -32,8 +32,9 @@ def push_available(exclude: List[str] = ['']) -> None:
         if f.name in exclude:
             continue
         sensor_config = SensorConfig(f)
-        if not sensor_config:
+        if not sensor_config.is_valid:
             logger.error(f"{f} is an invalid sensor configuration file!")
+            logger.error(f"Skipping {f}, data from this sensor is not being processed.")
             continue
         sensor_arrangement = SensorArrangement(sensor_config)
         application_name = sensor_arrangement.application_name 

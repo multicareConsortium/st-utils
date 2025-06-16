@@ -6,6 +6,7 @@ Extensions and wrappers to facilitate OGC SensorThings compliant implementations
 from typing import Dict, List, Any, Type, Literal, Optional, Tuple, TYPE_CHECKING
 from pathlib import Path
 import logging
+from functools import cached_property
 # external
 import yaml
 
@@ -39,10 +40,9 @@ class SensorConfig:
 
     def __init__(self, filepath: str | Path) -> None:
         self._filepath = Path(filepath)
-        self._data: Dict[str, Any] = self._load()
         # public:
+        self.data: Dict[str, Any] = self._load()
         self.sensor_model = self["networkMetadata"]["sensor_model"] 
-        self.data = self.validate()
 
     def _load(self) -> Dict:
         with open(self._filepath, "r") as file:
@@ -50,35 +50,44 @@ class SensorConfig:
         return data
 
     def __getitem__(self, key) -> Any:
-        return self._data.get(key)
+        if self.is_valid == None:
+            logger.warning(f"The SensorConfig {self._filepath.name} has not been" +
+                        f"validated! Run the `validate` method.")
+        if self.is_valid == False:
+            logger.error(f"The SensorConfig {self._filepath.name} is invalid." +
+                         f" Passing to other functions may cuase unexpected " + 
+                         f" behaviour.")
+        return self.data.get(key)
 
-    def validate(self) -> Dict[str, Any]:
+    @cached_property
+    def is_valid(self) -> bool:
+        """
+        Run a number of validation checks on a configuration file, return True
+        if config is valid.
+        """
         unvalidated_data = self._load()
         if not all(
                 [self._validate_sensor_name(unvalidated_data),
                  self._validate_entity_contents(unvalidated_data),
-                 self._validate_linking_sensor(unvalidated_data),
-                 self._validate_sensor_and_things_have_datastreams(unvalidated_data)]
+                 self._validate_entity_sizes(unvalidated_data),
+                 self._validate_iot_links(unvalidated_data)
+                 ]
                 ):
             logger.error(f"{self._filepath.name} is an invalid config.")
-            return {}
-        valid_data = unvalidated_data
-        return valid_data
+            return False
+        else:
+            return True
 
-    def _validate_sensor_name(self, uv_data: Dict) -> bool:
+    def _validate_sensor_name(self, unvalidated_data: Dict) -> bool:
         """Validate sensor key and sensor name (attribute) matches."""
 
-        sensor_config = uv_data.get("sensors")
+        sensor_config = unvalidated_data.get("sensors")
         if sensor_config is None:
             logger.error(f"No 'sensors' key in SensorConfig {self._filepath.name}.")
             return False
 
         sensor_key = next(iter(sensor_config))
         sensor_name = sensor_config.get(sensor_key).get("name")
-
-        if len(sensor_config) != 1:
-            logger.error(f"SensorConfig {self._filepath.name} should have exactly one sensor.")
-            return False
         if sensor_key != sensor_name:
             logger.error(f"SensorConfig {self._filepath.name}'s name ({sensor_name}) does not match its primary key {sensor_key}.")
             return False
@@ -170,40 +179,76 @@ class SensorConfig:
 
         return True if not invalid else False
 
-    def _validate_linking_sensor(self, unvalidated_data:Dict[str, Dict[str, Any]]) -> bool:
-        """Sensor name should be present in each datastream."""
-        sensor_name = next(iter(unvalidated_data["sensors"]))
-        passed_datastreams = unvalidated_data["datastreams"]
-        for datastream in passed_datastreams:
-            datastream_contents = passed_datastreams[datastream]
-            if datastream_contents["iot_links"]["sensors"][0] != sensor_name:
-                logger.error(f"{self._filepath.name}'s {datastream} is missing reference to {sensor_name}.")
-                return False
+    def _validate_entity_sizes(self, unvalidated_data: Dict[str, Dict[str, Any]]) -> bool:
+        """
+        Validate size of entities.
 
+        A valid sensor config file should contain:
+
+            - exactly one (1) sensor,
+            
+        """
         return True
-    
-    def _validate_sensor_and_things_have_datastreams(self, unvalidated_data: Dict[str, Dict[str,Any]]) -> bool:
-        """A sensor should have datastreams and these should be the same as the datastreams in the config."""
-        actual_datastreams = set(unvalidated_data["datastreams"])
+
+    def _validate_iot_links(self, unvalidated_data: Dict[str, Dict[str, Any]]) -> bool:
+        """Validate a series of expected links between entities."""
+
+        expected_iot_link_groups = {
+                "sensors":["datastreams"],
+                "things":["datastreams", "locations"],
+                "locations":["things"],
+                "datastreams":["observedProperties", "sensors", "things"]
+                }
+
         invalid = False
-        for s in ["sensors", "things"]:
-            for entity in unvalidated_data[s]:
-                passed_datastreams = unvalidated_data[s][entity]["iot_links"]["datastreams"] 
-                if not isinstance(passed_datastreams, list):
-                    logger.error(f"{self._filepath.name}'s {s} entity has iot_links which are not a list.")
-                missing_datastreams = set(passed_datastreams) - actual_datastreams 
-                extra_datastreams = actual_datastreams - set(passed_datastreams)
-                if missing_datastreams:
-                    logger.error(f"{self._filepath.name}'s {s} entity is missing datastream keys: {missing_datastreams}.")
+        # These first loops walk through entity groups (sensors, things, etc.)
+        # and the entity instances in those group, checking that the iot_links
+        # which are expected to be present in the config file are there.
+        for entity_type, entity_instances in unvalidated_data.items():
+            # observedProperties and networkMetadata have no iot_links.
+            if entity_type in ["observedProperties", "networkMetadata"]:
+                continue
+            for entity, entity_fields in entity_instances.items():
+                passed_links = entity_fields["iot_links"] 
+                exp_links = expected_iot_link_groups[entity_type]
+                extra_links = set(passed_links) - set(exp_links)
+                missing_links = set(exp_links) - set(passed_links)
+                if extra_links:
+                    logger.error(
+                            f"{self._filepath.name}.{entity_type}." + 
+                            f"{entity} has extra iot_links: " +
+                            f"{extra_links}."
+                            )
                     invalid = True
-                if extra_datastreams:
-                    logger.error(f"{self._filepath.name}'s {s} entity is missing datastream keys: {extra_datastreams}.")
+                if missing_links:
+                    logger.error(
+                            f"{self._filepath.name}.{entity_type}." + 
+                            f"{entity} is missing iot_link: "
+                            f"{missing_links}."
+                            )
                     invalid = True
+                # The next loop confirms that the iot_link specified exist
+                # in the config file.
+                for declared_datastream, link_list in passed_links.items():
+                    if not link_list:
+                        logger.error(
+                                f"{self._filepath.name}.{entity_type}." + 
+                                f"{entity} has an empty iot_link."
+                                )
+                        invalid = True
+                        continue
+                    for link in link_list:
+                        try:
+                            unvalidated_data[declared_datastream][link]
+                        except KeyError as e:
+                            logger.error(
+                                    f"{self._filepath.name}.{entity_type}." + 
+                                    f"{entity} declares an iot_link not in config: "
+                                    f"{link}."
+                                    )
+                            invalid = True
 
         return True if not invalid else False
-
-
-        
 
 class SensorArrangement:
     """

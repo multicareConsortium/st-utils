@@ -510,6 +510,10 @@ class TTSConnection(CredentialedMQTTSensorConnection):
                 logger.info(f"Received payload from TTS application: {self.application_name}")
                 return payload_received
             except queue.Empty:
+                logger.warning(
+                        f"No data received from {self.application_name}" + 
+                        f"in {timeout} seconds, retry count: {attempts}."
+                        )
                 attempts += 1
         raise TimeoutError(
             f"No messages retrieved for {self.application_name}."

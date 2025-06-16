@@ -123,6 +123,9 @@ datastreams:
       symbol: "%"
       definition: https://unitsofmeasure.org/ucum#para-29
     observedArea: *observedArea
+    phenomenon_time: null
+    properties: null
+    result_time: null
     iot_links:
       observedProperties:
         - internal_humidity
@@ -140,6 +143,9 @@ datastreams:
       symbol: ppm
       definition: https://unitsofmeasure.org/ucum#para-29
     observedArea: *observedArea
+    phenomenon_time: null
+    properties: null
+    result_time: null
     iot_links:
       observedProperties:
         - co2_levels
@@ -157,6 +163,9 @@ datastreams:
       symbol: mbar
       definition: https://unitsofmeasure.org/ucum#datyp2apdxatblxmp
     observedArea: *observedArea
+    phenomenon_time: null
+    properties: null
+    result_time: null
     iot_links:
       observedProperties:
         - gauge_pressure
@@ -174,6 +183,9 @@ datastreams:
       symbol: percent
       definition: ...
     observedArea: *observedArea
+    phenomenon_time: null
+    properties: null
+    result_time: null
     iot_links:
       observedProperties:
         - battery_level
@@ -191,6 +203,9 @@ datastreams:
       symbol: null 
       definition: boolean, active when motion was detected 
     observedArea: *observedArea
+    phenomenon_time: null
+    properties: null
+    result_time: null
     iot_links:
       observedProperties:
         - motion 
@@ -208,6 +223,9 @@ datastreams:
       symbol: μg/m3 
       definition: ... 
     observedArea: *observedArea
+    phenomenon_time: null
+    properties: null
+    result_time: null
     iot_links:
       observedProperties:
         - coarse_airborne_particles
@@ -222,6 +240,9 @@ datastreams:
     observationType: instant
     unitOfMeasurement: *nanograms_per_cubic_meter
     observedArea: *observedArea
+    phenomenon_time: null
+    properties: null
+    result_time: null
     iot_links:
       observedProperties:
         - fine_airborne_particles

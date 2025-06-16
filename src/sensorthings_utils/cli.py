@@ -13,6 +13,17 @@ def main():
     parser = argparse.ArgumentParser(description="st-utils CLI.")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
+    # subcommand: stream 
+    stream_parser = subparsers.add_parser(
+            "stream",
+            help = "Start the stream."
+            )
+    stream_parser.add_argument(
+            "--dest",
+            help="Change default destination.",
+            default=""
+            )
+
     # subcommand: validate
     validate_parser = subparsers.add_parser(
             "validate",

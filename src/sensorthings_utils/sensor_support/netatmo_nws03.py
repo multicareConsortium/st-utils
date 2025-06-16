@@ -2,13 +2,12 @@
 
 # standard
 import logging
-import time
 from typing import List, Dict, Any, Generator, Tuple
 
 # internal
 from ..sensor_things.core import Observation
 from ..config import CONTAINER_ENVIRONMENT
-from sensorthings_utils.frost import filter_query, make_frost_object, find_datastream_url
+from sensorthings_utils.frost import make_frost_object, find_datastream_url
 
 logger = logging.getLogger(__name__)
 
