@@ -11,6 +11,7 @@ import time
 from dataclasses import dataclass
 import queue
 from functools import cached_property
+from urllib.error import URLError
 import threading
 
 # external
@@ -20,7 +21,7 @@ from paho.mqtt.client import Client as mqttClient
 
 # internal
 from .config import ROOT_DIR
-from .sensor_support.netatmo_nws03 import frost_upload
+from .sensor_support import netatmo_nws03, milesight_am308L
 
 # environment setup
 logger = logging.getLogger(__name__)
@@ -105,7 +106,6 @@ def _init_credentials(
                 + "Cannot pass malformed or incomplete .env files."
             )
         all_credentials_json = json.loads(all_credentials)
-        logger.debug(f"{all_credentials_json}")
         credentials = json.dumps(all_credentials_json.get(application_name))
         with open(credentials_file, "w") as f:
             f.write(format_override(credentials))
@@ -162,7 +162,6 @@ def _init_credentials(
             )
         all_credentials_json = json.loads(all_credentials)
         credentials_json = all_credentials_json.get(application_name)
-        logger.debug(f"{all_credentials=}")
         credentials = json.dumps(credentials_json)
         with open(credentials_file, "w") as f:
             f.write(format_override(credentials))
@@ -313,13 +312,18 @@ class CredentialedMQTTSensorConnection(ABC):
         pass
 
     @abstractmethod
-    def retrieve(self) -> Any:
-        """Retrieve observations from the queue."""
+    def retrieve(self, push:bool = False) -> Any:
+        """Retrieve 'raw' data from a sensor connection."""
         pass
 
-    def start(self):
+    def start(self, push: bool = False):
         if self._thread is None or not self._thread.is_alive():
-            self._thread = threading.Thread(target=self._loop, daemon=True, name=self.application_name)
+            self._thread = threading.Thread(
+                    target=self._loop,
+                    args=(push,),
+                    daemon=True, 
+                    name=self.application_name
+                )
             self._thread.start()
 
     def stop(self):
@@ -327,12 +331,13 @@ class CredentialedMQTTSensorConnection(ABC):
         if self._thread:
             self._thread.join(5)
 
-    def _loop(self):
+    def _loop(self, push: bool):
         while not self._stop_event.is_set():
             try:
-                self.retrieve()
+                self.retrieve(push)
             except Exception as e:
-                logger.error(f"Error with {self.application_name}: {e}")
+                logger.error(f"Error with {self.application_name}: {e}", exc_info=True)
+                self.stop()
 
 class NetatmoConnection(CredentialedHTTPSensorConnection):
     """
@@ -403,16 +408,19 @@ class NetatmoConnection(CredentialedHTTPSensorConnection):
                             "Netatmo Payload for Sensor " +
                             f"{self.application_name} is empty."
                             )
-                logger.info(f"Received payload from Netatmo application {self.application_name} from {len(payload)} sensors.")
+                logger.info(
+                        f"Received payload from Netatmo application " +
+                        f"{self.application_name} from {len(payload)} sensors."
+                        )
                 if push:
-                    frost_upload(payload)
+                    netatmo_nws03.frost_upload(payload)
                     time.sleep(interval)
                     return None
                 else:
                     return payload 
             # catching a type error is not strictly correct, see
             # PR: https://github.com/philippelt/netatmo-api-python/pull/100
-            except (TimeoutError, TypeError) as e:
+            except (TimeoutError, URLError, TypeError) as e:
                 attempt += 1
                 logger.info(
                     "Netatmo time-out error, waiting and establishing new connection. "
@@ -484,7 +492,6 @@ class TTSConnection(CredentialedMQTTSensorConnection):
 
     def subscribe(self) -> None:
         client = self._auth
-
         # put a retrieved payload in the queue.
         def on_message(client, userdata, message):
             self.payload_queue.put(json.loads(message.payload))
@@ -498,7 +505,14 @@ class TTSConnection(CredentialedMQTTSensorConnection):
         client.loop_start()
         return None
 
-    def retrieve(self, timeout: int = 300, max_retries: int = 10) -> Dict | None:
+    #TODO: is 'retrieve' correct? This method retrieves but also transforms and pushes (through other functions.)
+    # either come up with a better name or separate functionality.
+    def retrieve(
+            self,
+            push: bool = False,
+            timeout: int = 300,
+            max_retries: int = 10,
+            ) -> Dict | None:
         """Return and empty payload queue."""
         if not self.subscribed:
             self.subscribe()
@@ -507,7 +521,24 @@ class TTSConnection(CredentialedMQTTSensorConnection):
             try:
                 payload_received = self.payload_queue.get(timeout=timeout)
                 attempts = 0 if payload_received else attempts
-                logger.info(f"Received payload from TTS application: {self.application_name}")
+                logger.debug(f"{payload_received=}")
+                sensor_model = payload_received.get("uplink_message", {}) \
+                                                .get("version_ids", {}) \
+                                                .get("model_id")
+                if not isinstance(sensor_model, str):
+                    raise ValueError(
+                            f"{self.application_name}: expected str sensor_model but got {sensor_model=}")
+                logger.info(
+                        f"Received payload from TTS application: " +
+                        f"{self.application_name} from a {sensor_model} sensor."
+                        )
+                if push:
+                    match sensor_model:
+                        case "am308l":
+                            milesight_am308L.frost_upload(payload_received)
+                        case "am103l":
+                            logger.critical("Not implemented for this Milesight AM103L.")
+
                 return payload_received
             except queue.Empty:
                 logger.warning(

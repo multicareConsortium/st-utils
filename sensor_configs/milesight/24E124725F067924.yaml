@@ -79,8 +79,8 @@ things:
         - Acerra Apartment Block, Level X, Some Address, Italy
 
 locations:
-  Acerra Apartment Block, Level X, Some Address:
-    name: Acerra Apartment Block, Level X, Some Address
+  Acerra Apartment Block, Level X, Some Address, Italy:
+    name: Acerra Apartment Block, Level X, Some Address, Italy # here names must match
     description: Apartment on some floor in Italy in an old residential building.
     properties: null
     encodingType: application/geo+json
@@ -89,7 +89,7 @@ locations:
       coordinates: [40.943988, 14.373644]
     iot_links:
       things:
-        - Acerra Apartment
+        - Acerra Apartment, Some Room
 
 datastreams:
   temperature_indoor:
@@ -112,7 +112,7 @@ datastreams:
       sensors:
         - 24E124707E428510
       things:
-        - Acerra Apartment
+        - Acerra Apartment, Some Room
 
   humidity:
     name: humidity
@@ -132,7 +132,7 @@ datastreams:
       sensors:
         - 24E124707E428510
       things:
-        - Acerra Apartment
+        - Acerra Apartment, Some Room
 
   co2:
     name: co2
@@ -152,7 +152,7 @@ datastreams:
       sensors:
         - 24E124707E428510
       things:
-        - Acerra Apartment
+        - Acerra Apartment, Some Room
 
   gauge_pressure:
     name: gauge_pressure
@@ -172,7 +172,7 @@ datastreams:
       sensors:
         - 24E124707E428510
       things:
-        - Acerra Apartment
+        - Acerra Apartment, Some Room
 
   battery_level:
     name: battery_level
@@ -192,7 +192,7 @@ datastreams:
       sensors:
         - 24E124707E428510
       things:
-        - Acerra Apartment
+        - Acerra Apartment, Some Room
 
   passive_infrared:
     name: passive_infrared
@@ -212,7 +212,7 @@ datastreams:
       sensors:
         - 24E124707E428510
       things:
-        - Acerra Apartment
+        - Acerra Apartment, Some Room
 
   particulate_matter_10:
     name: particulate_matter_10
@@ -232,7 +232,7 @@ datastreams:
       sensors:
         - 24E124707E428510
       things:
-        - Acerra Apartment
+        - Acerra Apartment, Some Room
 
   particulate_matter_2_5:
     name: particulate_matter_2_5
@@ -249,7 +249,7 @@ datastreams:
       sensors:
         - 24E124707E428510
       things:
-        - Acerra Apartment
+        - Acerra Apartment, Some Room
 
   total_volatile_organic_compounds:
     name: total_volatile_organic_compounds
@@ -260,13 +260,36 @@ datastreams:
       symbol: null 
       definition: ... 
     observedArea: *observedArea
+    phenomenon_time: null
+    properties: null
+    result_time: null
     iot_links:
       observedProperties:
         - tvoc
       sensors:
         - 24E124707E428510
       things:
-        - Acerra Apartment
+        - Acerra Apartment, Some Room
+
+  light_level:
+    name: light_level
+    description: ... 
+    observationType: instant
+    unitOfMeasurement: &lux_scale
+      name: lux_scale 
+      symbol: int 
+      definition: Lux scale from 0 to 5 in bands of 10,000 lux 
+    observedArea: *observedArea
+    phenomenon_time: null
+    properties: null
+    result_time: null
+    iot_links:
+      observedProperties:
+        - light_level
+      sensors:
+        - 24E124707E428510
+      things:
+        - Acerra Apartment, Some Room
 
 observedProperties:
   temperature_indoor:
@@ -335,8 +358,15 @@ observedProperties:
     description: ...
     properties: null
 
+
+  light_level:
+    name: light_level # here names must match too (why?)
+    definition: The amount of light in a room, in lux. 
+    description: ...
+    properties: null
+
 networkMetadata:
-  sensor_model: milesight_am308L 
-  application_name: multicare_acerra@ttn 
-  host: https://eu1.cloud.thethings.network
+  sensor_model: milesight_am308L # duplication
+  application_name: multicare-acerra@ttn # typo in this caused a problem! did not match the creds.
+  host: eu1.cloud.thethings.network # the https:// led to an error.
  

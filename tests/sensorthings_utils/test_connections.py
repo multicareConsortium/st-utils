@@ -77,7 +77,7 @@ class TestTTSConnection():
         """Should make a TTS Connection (no auth.)"""
         tts_connection = TTSConnection(
                 application_name = "app1",
-                mqtt_host = "mock.host"
+                mqtt_host = "mock.host",
                 )
         assert isinstance(tts_connection, TTSConnection)
 

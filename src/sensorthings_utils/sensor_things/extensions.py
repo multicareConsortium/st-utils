@@ -42,7 +42,7 @@ class SensorConfig:
         self._filepath = Path(filepath)
         # public:
         self.data: Dict[str, Any] = self._load()
-        self.sensor_model = self["networkMetadata"]["sensor_model"] 
+        self.sensor_model = self["networkMetadata"]["sensor_model"] # type: ignore (None types will be caught by the valididty flag)
 
     def _load(self) -> Dict:
         with open(self._filepath, "r") as file:
@@ -76,6 +76,7 @@ class SensorConfig:
             logger.error(f"{self._filepath.name} is an invalid config.")
             return False
         else:
+            logger.info(f"{self._filepath.name} is a valid config.")
             return True
 
     def _validate_sensor_name(self, unvalidated_data: Dict) -> bool:
@@ -285,24 +286,14 @@ class SensorArrangement:
         self._unlinked_arrangement: List["SensorThingsObject"] = self._initial_setup()
         # public:
         self.linked_arrangement: Tuple[SensorThingsObject, ...] = self._link_iot()
-        self.application_name: str = ''
-        self.host: str | None = None
-        self._set_network_attributes()
+        self.application_name: str = self._sensor_config["networkMetadata"]["application_name"]
+        self.host: str = self._sensor_config["networkMetadata"]["host"]
 
     def __repr__(self) -> str:
         return (
             f"SensorArrangement (Sensor={self.get_entities("Sensor")[0].name}, "
             + f"SensorThingsObjects={len(self.linked_arrangement)})"
         )
-
-    def _set_network_attributes(self) -> None:
-        """Set the network attributes from the config file."""
-        for network_attribute in ["application_name", "host"]:
-            setattr(
-                    self, 
-                    network_attribute, 
-                    self._sensor_config["networkMetadata"][network_attribute]
-                    )
 
     def _initial_setup(self) -> List[SensorThingsObject]:
         """
@@ -353,7 +344,7 @@ class SensorArrangement:
                 elif not field:
                     return sensor_things_object  # type: ignore
 
-        raise KeyError(f"Keys {entity}, {field} and {instance} not found.")
+        raise KeyError(f"Keys {entity=}, {field=} and {instance=} not found.")
 
     def get_entities(
         self,

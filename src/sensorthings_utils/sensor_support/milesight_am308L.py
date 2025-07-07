@@ -3,10 +3,9 @@ import os
 from typing import Dict, List, Any
 import logging
 # external
-
 # internal
-from .frost import filter_query, make_frost_object, find_datastream_url 
-from .sensor_things.core import Observation
+from ..frost import make_frost_object, find_datastream_url 
+from ..sensor_things.core import Observation
 
 # environment setup
 CONTAINER_ENVIRONMENT = True if os.getenv("CONTAINER_ENVIRONMENT") else False
@@ -21,7 +20,7 @@ EXPECTED_KEYS = [
 
 def _filter(
         payload: Dict,
-        exclude: List[str] = ['']
+        exclude: List[str]  | None = None
     ) -> Dict[str, Any]:
     """
     Return parsed Milesight payload, keeping only relevant SensorThings data.
@@ -31,22 +30,15 @@ def _filter(
 
     """
     data = {}
-    identifiers = payload.get("identifiers")
-    if identifiers is None:
-        raise ValueError("No payload identifiers found.")
-    if len(identifiers) != 1 or not isinstance(identifiers, list):
-        raise ValueError(
-                f"Expected payload identifiers to be List of len 1, got " + 
-                f"{type(identifiers)} of len {len(identifiers)}"
-                )
     try:
-        data["sensor_name"] = payload["identifiers"][0]["device_ids"]["dev_eui"]
-        data["phenomenon_time"] = payload["data"]["uplink_message"]["rx_metadata"][0]["time"]
-        data["observations"] = payload["data"]["uplink_message"]["decoded_payload"]
-        if data["sensor_name"] in exclude:
+        data["sensor_name"] = payload["end_device_ids"]["dev_eui"]
+        if exclude and data["sensor_name"] in exclude:
             return {}
+        data["phenomenon_time"] = payload["uplink_message"]["rx_metadata"][0]["time"]
+        data["observations"] = payload["uplink_message"]["decoded_payload"]
     except KeyError as e:
-        logger.critical(f"An invalid Milesight Payload was passed! Error: {e}")
+        logger.debug(f"{payload=}")
+        logger.critical(f"Milesight AM308L payload is invalid: missing key: {e}")
         return {}
     return data
 
@@ -75,7 +67,7 @@ def _transform(data: Dict[str, Any]) -> Dict[str, Any]:
     }
 
     for key in EXPECTED_KEYS:
-        if key not in data: raise ValueError(f"Missing key {key}.")
+        if key not in data: raise KeyError(f"Missing key {key}.")
 
     transformed_observations = {
             transformed_key:data["observations"][key] for key, transformed_key in 
@@ -92,7 +84,16 @@ def frost_upload(
         exclude: List[str] = [""],
     ) -> None:
     """Filter, transform and push Milesight AM3081 package to the FROST server."""
-    transformed_payload = _transform(_filter(raw_payload, exclude))
+
+    try:
+        transformed_payload = _transform(_filter(raw_payload, exclude))
+    except KeyError as e:
+        logger.critical(
+                f"Malformed or empty AM308L payload: {raw_payload=}. " +
+                "Nothing was pushed to FROST."
+                )
+        return None
+
     sensor_name = transformed_payload["sensor_name"]
     phenomenon_time = transformed_payload["phenomenon_time"]
     observations = transformed_payload["observations"] #type: Dict[str, Any]
@@ -104,6 +105,11 @@ def frost_upload(
             result=result,
             phenomenonTime=phenomenon_time,
         )
+        if not push_link:
+            logger.critical(
+                    f"Unable to upload payload: no datastream URL found. " +
+                    f"Details: {sensor_name=}, {datastream_name=}")
+            continue
         try:
             make_frost_object(observation, push_link)
         except Exception as e:

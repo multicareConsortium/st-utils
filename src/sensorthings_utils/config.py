@@ -27,10 +27,9 @@ FROST_PASSWORD = os.getenv("FROST_PASSWORD")
 FROST_CREDENTIALS = base64.b64encode(f"{FROST_USER}:{FROST_PASSWORD}".encode()).decode(
     "utf-8"
 )
-FROST_ENDPOINT = (
-    os.getenv("FROST_ENDPOINT") or "http://localhost:8080/FROST-Server/v1.1"
-)
-# set in a docker-compose file, constant is equivalent to None in non-container:
+FROST_ENDPOINT_DEFAULT = "http://localhost:8080/FROST-Server/v1.1"
+
+# set CONTAINER_ENVIRONMENT=True in docker-compose files
 CONTAINER_ENVIRONMENT = bool(os.getenv("CONTAINER_ENVIRONMENT"))
 
 

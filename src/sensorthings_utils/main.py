@@ -1,13 +1,13 @@
 # standard
-from typing import List, Literal, Dict, Callable
+from typing import List, Optional
 import time
 import threading
 import logging
-
+import os
 # external
 
 # internal
-from sensorthings_utils.config import SENSOR_CONFIG_FILES, FROST_ENDPOINT
+from sensorthings_utils.config import SENSOR_CONFIG_FILES, FROST_ENDPOINT_DEFAULT
 from sensorthings_utils.sensor_things.extensions import (
     SensorConfig,
     SensorArrangement,
@@ -24,10 +24,26 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 
-def push_available(exclude: List[str] = ['']) -> None:
-    logging.info(f"Sensor stream starts in 30s, pushing too: {FROST_ENDPOINT}")
+def push_available(
+        exclude: Optional[List[str]] = None,
+        frost_endpoint: Optional[str] = None 
+        ) -> None:
+    """
+    Push available sensor connections.
+
+    :param exclude: Sensor's (MAC addresses) to exclude form the stream, 
+        defaults to None.
+    :type exclude: List[str] | None
+    :param frost_endpoint: Endpointt to push to, defaults to FROST_ENDPOINT 
+        set up in src/config.py (usually localhost)
+    :type frost_endpoint: str | None
+    """
+    exclude = exclude or []
+    frost_endpoint = frost_endpoint or os.getenv("FROST_ENDPOINT") or FROST_ENDPOINT_DEFAULT
+    os.environ["FROST_ENDPOINT"] = frost_endpoint
+    logging.info(f"Sensor stream starts in 30s, pushing too: {frost_endpoint}")
     time.sleep(1)
-    sensor_streams = set() 
+    sensor_connections = set() 
     for f in SENSOR_CONFIG_FILES:
         if f.name in exclude:
             continue
@@ -38,17 +54,21 @@ def push_available(exclude: List[str] = ['']) -> None:
             continue
         sensor_arrangement = SensorArrangement(sensor_config)
         application_name = sensor_arrangement.application_name 
+        logging.debug(f"{application_name=}")
         host = sensor_arrangement.host
-        sensor_name = sensor_config.sensor_model 
         frost.initial_setup(sensor_arrangement)
-        match sensor_name:
-            case "netatmo_nsw03":
-                sensor_streams.add(NetatmoConnection(application_name))
-            case "milesight_tts":
-                if not host:
-                    raise ValueError(f"Expected a host for the MQTT sensor: {sensor_name}")
-                sensor_streams.add(TTSConnection(application_name="multicare-bucharest@ttn", mqtt_host=host))
-    for connection in set(sensor_streams):
+        match host:
+            case "netatmo":
+                sensor_connections.add(NetatmoConnection(application_name))
+            case _ if host.endswith(".thethings.network"):
+                sensor_connections.add(
+                        TTSConnection(
+                            application_name=application_name,
+                            mqtt_host=host,
+                            )
+                        )
+
+    for connection in set(sensor_connections):
         connection.start(push=True)
 
     logging.info(f"Started {threading.active_count()} threads: {[i.name for i in threading.enumerate()]}")
@@ -57,7 +77,7 @@ def push_available(exclude: List[str] = ['']) -> None:
         while True:
             time.sleep(1)
     except KeyboardInterrupt:
-        for conn in sensor_streams:
+        for conn in sensor_connections:
             logging.info(f"Stopping thread for {conn.application_name}")
             conn.stop()
 

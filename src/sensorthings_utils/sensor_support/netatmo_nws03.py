@@ -29,12 +29,12 @@ def _filter(
     """
     data = {}
     if not payload[0]:
-        logger.critical("No netatmo data returned.")
+        logger.warning("No netatmo data returned.")
     if exclude:
        payload = [i for i in payload if i["_id"] not in exclude] 
     for item in payload:
         if item["reachable"] == False:
-            logger.critical(f"Netatmo Station {item["_id"]} is unreachable.")
+            logger.warning(f"Netatmo Station {item["_id"]} is unreachable.")
             return data
         station_id = item["_id"]
         dashboard_data = item["dashboard_data"]
@@ -81,6 +81,11 @@ def frost_upload(
             push_link = find_datastream_url(
                     sensor_name, datastream_name, CONTAINER_ENVIRONMENT
                     )
+            if not push_link:
+                logger.warning(
+                        f"Unable to upload payload: no datastream URL found. " +
+                        f"Details: {sensor_name=}, {datastream_name=}")
+                continue
             observation = Observation(
                     result=result,
                     phenomenonTime=phenomenon_time,
@@ -88,7 +93,7 @@ def frost_upload(
             try:
                 make_frost_object(observation, push_link)
             except Exception as e:
-                logger.critical(
+                logger.warning(
                         f"Failure adding observation/s for {sensor_name}. Has the datastream been set up? Error: {e}"
                 )
                 break
