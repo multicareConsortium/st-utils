@@ -31,3 +31,4 @@ debug*.py
 # Local docker compose
 docker-compose.override.yml
 
+*logs/

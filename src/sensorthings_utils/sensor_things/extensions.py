@@ -20,6 +20,7 @@ from .core import (
     SensorThingsObject,
     SENSOR_THINGS_OBJECTS,
 )
+from ..monitor import network_monitor
 
 # typing and type-checking
 if TYPE_CHECKING:
@@ -74,6 +75,7 @@ class SensorConfig:
                  ]
                 ):
             logger.error(f"{self._filepath.name} is an invalid config.")
+            network_monitor.add_count("sensor_config_fail", 1)
             return False
         else:
             logger.info(f"{self._filepath.name} is a valid config.")

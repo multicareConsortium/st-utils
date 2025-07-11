@@ -6,6 +6,7 @@ import logging
 # internal
 from ..frost import make_frost_object, find_datastream_url 
 from ..sensor_things.core import Observation
+from ..monitor import network_monitor
 
 # environment setup
 CONTAINER_ENVIRONMENT = True if os.getenv("CONTAINER_ENVIRONMENT") else False
@@ -81,14 +82,16 @@ def _transform(data: Dict[str, Any]) -> Dict[str, Any]:
 
 def frost_upload(
         raw_payload: Dict[str, Any],
+        *,
         exclude: List[str] = [""],
+        application_name: str | None = None
     ) -> None:
     """Filter, transform and push Milesight AM3081 package to the FROST server."""
 
     try:
         transformed_payload = _transform(_filter(raw_payload, exclude))
     except KeyError as e:
-        logger.critical(
+        logger.warning(
                 f"Malformed or empty AM308L payload: {raw_payload=}. " +
                 "Nothing was pushed to FROST."
                 )
@@ -98,6 +101,7 @@ def frost_upload(
     phenomenon_time = transformed_payload["phenomenon_time"]
     observations = transformed_payload["observations"] #type: Dict[str, Any]
     for datastream_name, result in observations.items():
+        upload_success = False
         push_link = find_datastream_url(
                 sensor_name, datastream_name, CONTAINER_ENVIRONMENT
                 )
@@ -109,11 +113,18 @@ def frost_upload(
             logger.critical(
                     f"Unable to upload payload: no datastream URL found. " +
                     f"Details: {sensor_name=}, {datastream_name=}")
-            continue
         try:
-            make_frost_object(observation, push_link)
+            make_frost_object(observation, push_link, application_name)
+            upload_success = True
         except Exception as e:
             logger.critical(
                     f"Failure adding observation/s for {sensor_name}. Has the datastream been set up? Error: {e}"
             )
+        if not upload_success:
+            application_name = application_name or ""
+            network_monitor.add_named_count(
+                        "push_fail",
+                        application_name,
+                        1
+                        )
     return None

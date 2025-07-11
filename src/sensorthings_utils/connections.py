@@ -22,9 +22,11 @@ from paho.mqtt.client import Client as mqttClient
 # internal
 from .config import ROOT_DIR
 from .sensor_support import netatmo_nws03, milesight_am308L
+from .monitor import network_monitor
 
 # environment setup
 logger = logging.getLogger(__name__)
+root_logger = logging.getLogger("rootLogger")
 CONTAINER_ENVIRONMENT = True if os.getenv("CONTAINER_ENVIRONMENT") else False
 # type definitions
 SingleAppCredentialFile = Path
@@ -122,7 +124,6 @@ def _init_credentials(
                 + "env file and container variable."
             )
         all_credentials_json = json.loads(all_credentials)
-        logger.debug(f"{all_credentials_json}")
         credentials = json.dumps(all_credentials_json.get(application_name))
         with open(credentials_file, "w") as f:
             f.write(format_override(credentials))
@@ -244,15 +245,25 @@ class CredentialedHTTPSensorConnection(ABC):
             self._thread.join(5)
 
     def _loop(self, push: bool):
+        restart_attempt = 0
         while not self._stop_event.is_set():
             try:
                 self.retrieve(push)
                 time.sleep(self.interval)
-            except Exception as e:
-                logger.error(f"Error with {self.application_name}: {e}", exc_info=True)
+                restart_attempt = 0
+            except KeyboardInterrupt:
                 self.stop()
+                break
+            except Exception as e:
+                restart_attempt += 1
+                time.sleep(300)
+                logger.warning(f"Thread {self.application_name} encountered an exception {e}. Sleeping and trying again.")
+                if restart_attempt == self.max_connection_retries:
+                    self.stop()
+                    logger.critical(f"Thread {self.application_name} died: {e}")
+            
 
-
+#TODO: Consider a parent connection class.
 class CredentialedMQTTSensorConnection(ABC):
     """
     Connections to sensors which use credentials as their main form of auth.
@@ -264,6 +275,7 @@ class CredentialedMQTTSensorConnection(ABC):
         mqtt_port: int,
         credentials_dir: Path = Path(f"{ROOT_DIR}/.credentials"),
         env_file: Path = Path(f"{ROOT_DIR}/.env"),
+        max_retries: int = 10
     ):
         self.application_name = application_name
         self.mqtt_host = mqtt_host
@@ -274,6 +286,7 @@ class CredentialedMQTTSensorConnection(ABC):
         self.subscribed: bool = False
         self._thread = None
         self._stop_event = threading.Event()
+        self.max_retries = max_retries
 
     def __hash__(self) -> int:
         return hash(self.application_name)
@@ -332,12 +345,21 @@ class CredentialedMQTTSensorConnection(ABC):
             self._thread.join(5)
 
     def _loop(self, push: bool):
+        restart_attempts = 0
         while not self._stop_event.is_set():
             try:
                 self.retrieve(push)
-            except Exception as e:
-                logger.error(f"Error with {self.application_name}: {e}", exc_info=True)
+                restart_attempts = 0
+            except KeyboardInterrupt as e:
                 self.stop()
+                break
+            except Exception as e:
+                restart_attempts += 1
+                time.sleep(300)
+                logger.warning(f"Thread {self.application_name} encountered an exception {e}. Sleeping and trying again.")
+                if restart_attempts == self.max_retries:
+                    self.stop()
+                    logger.critical(f"Thread {self.application_name} has died: {e}.")
 
 class NetatmoConnection(CredentialedHTTPSensorConnection):
     """
@@ -395,7 +417,6 @@ class NetatmoConnection(CredentialedHTTPSensorConnection):
     def retrieve(
             self, 
             push: bool=False,
-            interval: int = 240
         ) -> List[Dict[str, Any]] | None: #type: ignore
         """Retrieve the latest untransformed observation set (one or more) from the Netatmo API."""
         attempt = 0
@@ -412,9 +433,15 @@ class NetatmoConnection(CredentialedHTTPSensorConnection):
                         f"Received payload from Netatmo application " +
                         f"{self.application_name} from {len(payload)} sensors."
                         )
+                network_monitor.add_named_count(
+                        "payloads_received",
+                        self.application_name, 1
+                        )
                 if push:
-                    netatmo_nws03.frost_upload(payload)
-                    time.sleep(interval)
+                    netatmo_nws03.frost_upload(
+                            payload,
+                            application_name=self.application_name
+                            )
                     return None
                 else:
                     return payload 
@@ -429,7 +456,7 @@ class NetatmoConnection(CredentialedHTTPSensorConnection):
                 )
                 time.sleep(30)
                 return list(dict()) 
-        logger.critical(f"Netatmo sensor link down - NO DATA BEING COLLECTED.")
+        logger.warning(f"Netatmo sensor link down - NO DATA BEING COLLECTED.")
     
 
 
@@ -518,8 +545,10 @@ class TTSConnection(CredentialedMQTTSensorConnection):
             self.subscribe()
         attempts = 1
         while attempts <= max_retries:
+            retrieve_success = False
             try:
                 payload_received = self.payload_queue.get(timeout=timeout)
+                network_monitor.add_named_count("payloads_received", self.application_name, 1)
                 attempts = 0 if payload_received else attempts
                 logger.debug(f"{payload_received=}")
                 sensor_model = payload_received.get("uplink_message", {}) \
@@ -535,10 +564,19 @@ class TTSConnection(CredentialedMQTTSensorConnection):
                 if push:
                     match sensor_model:
                         case "am308l":
-                            milesight_am308L.frost_upload(payload_received)
+                            milesight_am308L.frost_upload(
+                                    payload_received,
+                                    application_name=self.application_name
+                                    )
                         case "am103l":
                             logger.critical("Not implemented for this Milesight AM103L.")
+                            network_monitor.add_named_count(
+                                    "rejected_payloads",
+                                    self.application_name,
+                                    1
+                                    )
 
+                retrieve_success = True
                 return payload_received
             except queue.Empty:
                 logger.warning(
@@ -546,6 +584,12 @@ class TTSConnection(CredentialedMQTTSensorConnection):
                         f"in {timeout} seconds, retry count: {attempts}."
                         )
                 attempts += 1
+            if not retrieve_success:
+                network_monitor.add_named_count(
+                        "rejected_payloads",
+                        self.application_name,
+                        1
+                        )
         raise TimeoutError(
             f"No messages retrieved for {self.application_name}."
             + f"Attempt {attempts} of {max_retries}."

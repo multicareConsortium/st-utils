@@ -8,6 +8,7 @@ from typing import List, Dict, Any, Generator, Tuple
 from ..sensor_things.core import Observation
 from ..config import CONTAINER_ENVIRONMENT
 from sensorthings_utils.frost import make_frost_object, find_datastream_url
+from ..monitor import network_monitor
 
 logger = logging.getLogger(__name__)
 
@@ -68,12 +69,15 @@ def _transform(data: Dict[str, Any]) -> Generator[Tuple[Any, ...]]:
 
 def frost_upload(
         payload: List[Dict[str, Any]],
+        *,
         exclude: List[str] | None = None,
+        application_name: str | None = None
     ) -> None:
     """Extract, transform and load Netatmo devices linked to your account."""
     for station in _filter(payload, exclude).values():
         observation_stream = _transform(station)
         for o in observation_stream:
+            upload_success = False
             sensor_name = o[0]
             datastream_name = o[1]
             phenomenon_time = o[2]
@@ -91,9 +95,17 @@ def frost_upload(
                     phenomenonTime=phenomenon_time,
                 )
             try:
-                make_frost_object(observation, push_link)
+                make_frost_object(observation, push_link, application_name)
+                upload_success = True
             except Exception as e:
                 logger.warning(
                         f"Failure adding observation/s for {sensor_name}. Has the datastream been set up? Error: {e}"
                 )
-                break
+            if not upload_success:
+                application_name = application_name or ""
+                network_monitor.add_named_count(
+                            "push_fail",
+                            application_name,
+                            1
+                            )
+    return None 

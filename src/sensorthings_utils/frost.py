@@ -5,10 +5,11 @@ import urllib.request as request
 from urllib.parse import quote
 from urllib import error
 from typing import Dict, Tuple, Any, Union, TYPE_CHECKING
+import time
 import json
 import logging
 import os
-
+import re
 # internal
 from sensorthings_utils.config import (
     CONTAINER_ENVIRONMENT,
@@ -16,6 +17,7 @@ from sensorthings_utils.config import (
     FROST_CREDENTIALS,
 )
 from sensorthings_utils.sensor_things.core import Datastream, SensorThingsObject, Observation
+from sensorthings_utils.monitor import network_monitor
 
 # typing
 if TYPE_CHECKING:
@@ -35,6 +37,25 @@ ENTITY_ENDPOINTS: Dict[str, str] = {
     "HistoricalLocation": "/HistoricalLocations",
     "Location": "/Locations",
 }
+
+def _check_frost_connection() -> None:
+    """Check that FROST is functionally active."""
+
+    frost_endpoint = os.getenv("FROST_ENDPOINT") or FROST_ENDPOINT_DEFAULT
+    datastream_url = frost_endpoint + "/Datastreams"
+    general_error_msg = (
+            f"FROST server at {frost_endpoint} not active. " +
+            "If you believe the server is up, check the environment " +
+            "variable $FROST_ENDPOINT."
+            )
+    try:
+        with request.urlopen(datastream_url) as _:
+            logger.info("FROST connectivity confirmed.")
+            return None
+    except error.HTTPError as e:
+        raise ConnectionError(f"{e}. {general_error_msg}") from None
+    except error.URLError as e:
+        raise ConnectionError(f"{e}. {general_error_msg}") from None
 
 def check_existing_object(
         entity: "SensorThingsObject", container_environment: bool) -> bool:
@@ -110,7 +131,6 @@ def filter_query(
     if container_environment:
         query_url = query_url.replace("localhost", "web")
     get_request = request.Request(url=query_url, method="GET")
-    logger.debug(f"{query_url=}")
     try:
         with request.urlopen(get_request) as response:
             response = json.loads(response.read())
@@ -136,6 +156,7 @@ def initial_setup(sensor_arrangement: "SensorArrangement") -> str:
     when setting up an arranagement for the first time.
     """
 
+    _check_frost_connection()
     for thing in sensor_arrangement.get_entities("Thing"):
         make_thing = make_frost_object(thing)
         if not make_thing:
@@ -186,6 +207,7 @@ def initial_setup(sensor_arrangement: "SensorArrangement") -> str:
 def make_frost_object(
     entity: Union["SensorThingsObject", "Observation"],
     iot_url: str | None = None,
+    application_name: str | None = None
 ) -> Dict[str, str]:
     """
     Add a a SensorThingsObject to the FROST server, return FROST IoT Link.
@@ -211,10 +233,12 @@ def make_frost_object(
         "Location": ("HistoricalLocations", "Things"),
     }
 
+    application_name = application_name or ""
     expected_links = expected_links_map[entity.st_type]
     url = iot_url or (frost_endpoint + ENTITY_ENDPOINTS[entity.st_type])
     if CONTAINER_ENVIRONMENT:
         url = url.replace("localhost", "web")
+
     post_request = request.Request(
         url=url,
         data=entity.model_dump_json(exclude={"iot_links", "id", "st_type"}).encode(
@@ -224,17 +248,34 @@ def make_frost_object(
     )
     post_request.add_header("Content-Type", "application/json")
     post_request.add_header("Authorization", f"Basic {FROST_CREDENTIALS}")
+
     try:
         with request.urlopen(post_request) as response:
             new_object_url = response.getheader(
                 "Location"
             )  # "Location" does not refer to a SensorThings Location
             logger.info(f"New {entity.st_type} created at {new_object_url}")
+            if entity.st_type == "Observation":
+                sensor_name = observation_to_sensor_trace(new_object_url)
+                if sensor_name:
+                    network_monitor.add_named_count(
+                            "push_success",
+                            application_name + ":" + sensor_name,
+                            1
+                        )
+                    network_monitor.add_named_time(
+                            "last_push_time",
+                            application_name + ":" + sensor_name,
+                            time.time()
+                            )
     except error.HTTPError as e:
         logger.warning(f"{e} {e.read()}")
+        network_monitor.add_named_count("push_fail", application_name, 1)
         return {}
+
     if CONTAINER_ENVIRONMENT:
         new_object_url = new_object_url.replace("localhost", "web")
+
     with request.urlopen(new_object_url) as response:
         response = json.loads(response.read())
 
@@ -315,3 +356,27 @@ def find_datastream_url(
                     f"{sensor_name}."
                     )
             return ""
+
+def observation_to_sensor_trace(url: str, return_url: bool = False) -> str | None:
+    """Return name or URL of sensor which generated an observation."""
+    if not re.search(r"/Observations\(\d+\)$", url):
+        logger.warning(
+                f"Did not find a datastream associated with this observation." +
+                f"Check the URL passed: {url}"
+                )
+        return None
+    try:
+        with request.urlopen(url) as response:
+            datastream_url = json.loads(response.read())["Datastream@iot.navigationLink"]
+        with request.urlopen(datastream_url) as response:
+            sensor_url = json.loads(response.read())["Sensor@iot.navigationLink"]
+            if return_url: return sensor_url
+        with request.urlopen(sensor_url) as response:
+            return json.loads(response.read())["name"]
+        
+    except error.URLError as e:
+        logger.warning(f"URL Error: {e}")
+    except KeyError as e:
+        logger.warning(f"Missing expected key: {e}")
+
+
