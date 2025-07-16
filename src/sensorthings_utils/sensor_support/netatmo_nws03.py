@@ -12,6 +12,7 @@ from ..monitor import network_monitor
 
 logger = logging.getLogger(__name__)
 
+
 def _filter(
     payload: List[Dict[str, Any]],
     exclude: List[str] | None = None,
@@ -32,7 +33,7 @@ def _filter(
     if not payload[0]:
         logger.warning("No netatmo data returned.")
     if exclude:
-       payload = [i for i in payload if i["_id"] not in exclude] 
+        payload = [i for i in payload if i["_id"] not in exclude]
     for item in payload:
         if item["reachable"] == False:
             logger.warning(f"Netatmo Station {item["_id"]} is unreachable.")
@@ -68,11 +69,11 @@ def _transform(data: Dict[str, Any]) -> Generator[Tuple[Any, ...]]:
 
 
 def frost_upload(
-        payload: List[Dict[str, Any]],
-        *,
-        exclude: List[str] | None = None,
-        application_name: str | None = None
-    ) -> None:
+    payload: List[Dict[str, Any]],
+    *,
+    exclude: List[str] | None = None,
+    application_name: str | None = None,
+) -> None:
     """Extract, transform and load Netatmo devices linked to your account."""
     for station in _filter(payload, exclude).values():
         observation_stream = _transform(station)
@@ -83,29 +84,26 @@ def frost_upload(
             phenomenon_time = o[2]
             result = o[3]
             push_link = find_datastream_url(
-                    sensor_name, datastream_name, CONTAINER_ENVIRONMENT
-                    )
+                sensor_name, datastream_name, CONTAINER_ENVIRONMENT
+            )
             if not push_link:
                 logger.warning(
-                        f"Unable to upload payload: no datastream URL found. " +
-                        f"Details: {sensor_name=}, {datastream_name=}")
+                    f"Unable to upload payload: no datastream URL found. "
+                    + f"Details: {sensor_name=}, {datastream_name=}"
+                )
                 continue
             observation = Observation(
-                    result=result,
-                    phenomenonTime=phenomenon_time,
-                )
+                result=result,
+                phenomenonTime=phenomenon_time,
+            )
             try:
                 make_frost_object(observation, push_link, application_name)
                 upload_success = True
             except Exception as e:
                 logger.warning(
-                        f"Failure adding observation/s for {sensor_name}. Has the datastream been set up? Error: {e}"
+                    f"Failure adding observation/s for {sensor_name}. Has the datastream been set up? Error: {e}"
                 )
             if not upload_success:
                 application_name = application_name or ""
-                network_monitor.add_named_count(
-                            "push_fail",
-                            application_name,
-                            1
-                            )
-    return None 
+                network_monitor.add_named_count("push_fail", application_name, 1)
+    return None

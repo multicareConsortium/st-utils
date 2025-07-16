@@ -31,4 +31,7 @@ debug*.py
 # Local docker compose
 docker-compose.override.yml
 
+# Sensorconfigs
+sensor_configs/*
+
 *logs/

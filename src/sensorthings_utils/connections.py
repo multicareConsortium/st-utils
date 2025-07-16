@@ -111,7 +111,9 @@ def _init_credentials(
         credentials = json.dumps(all_credentials_json.get(application_name))
         with open(credentials_file, "w") as f:
             f.write(format_override(credentials))
-            logger.info(f"wrote credentials to {application_name}.{sensor_type}.credentials file.")
+            logger.info(
+                f"wrote credentials to {application_name}.{sensor_type}.credentials file."
+            )
             return credentials_file
     # if a new credential file was made and .env does not exist (for container
     # enviornments) then we assume they're already loaded up, otherwise
@@ -127,7 +129,9 @@ def _init_credentials(
         credentials = json.dumps(all_credentials_json.get(application_name))
         with open(credentials_file, "w") as f:
             f.write(format_override(credentials))
-            logger.info(f"wrote credentials to {application_name}.{sensor_type}.credentials file.")
+            logger.info(
+                f"wrote credentials to {application_name}.{sensor_type}.credentials file."
+            )
             return credentials_file
     # if a credential file was already there and there is no env (for container
     # environments) then check if the credentials are there and use those
@@ -166,29 +170,35 @@ def _init_credentials(
         credentials = json.dumps(credentials_json)
         with open(credentials_file, "w") as f:
             f.write(format_override(credentials))
-            logger.info(f"wrote credentials to {application_name}.{sensor_type}.credentials file.")
+            logger.info(
+                f"wrote credentials to {application_name}.{sensor_type}.credentials file."
+            )
             return credentials_file
     else:
-        logger.info(f"{application_name}.{sensor_type}.credentials is newer than .env, using existing credentials.")
+        logger.info(
+            f"{application_name}.{sensor_type}.credentials is newer than .env, using existing credentials."
+        )
         return credentials_file
+
 
 class CredentialedHTTPSensorConnection(ABC):
     """
     Connections to sensors which use credentials as their main form of auth.
     """
+
     def __init__(
         self,
         application_name: str,
         credentials_dir: Path = Path(f"{ROOT_DIR}/.credentials"),
         env_file: Path = Path(f"{ROOT_DIR}/.env"),
         max_retries: int = 10,
-        interval: int = 300
+        interval: int = 300,
     ):
         self.application_name = application_name
         self.credentials_dir = credentials_dir
         self.env_file = env_file
         self.max_connection_retries = max_retries
-        self.interval = interval 
+        self.interval = interval
         self._thread = None
         self._stop_event = threading.Event()
 
@@ -196,7 +206,6 @@ class CredentialedHTTPSensorConnection(ABC):
         return hash(self.application_name)
 
     def __eq__(self, other) -> bool:
-
         if not isinstance(other, CredentialedHTTPSensorConnection):
             return False
         if other.application_name == self.application_name:
@@ -225,18 +234,15 @@ class CredentialedHTTPSensorConnection(ABC):
         pass
 
     @abstractmethod
-    def retrieve(self, push:bool = False) -> Any:
+    def retrieve(self, push: bool = False) -> Any:
         """Retrieve 'raw' data from a sensor connection."""
         pass
 
     def start(self, push: bool = False):
         if self._thread is None or not self._thread.is_alive():
             self._thread = threading.Thread(
-                    target=self._loop,
-                    args=(push,),
-                    daemon=True, 
-                    name=self.application_name
-                )
+                target=self._loop, args=(push,), daemon=True, name=self.application_name
+            )
             self._thread.start()
 
     def stop(self):
@@ -257,17 +263,20 @@ class CredentialedHTTPSensorConnection(ABC):
             except Exception as e:
                 restart_attempt += 1
                 time.sleep(300)
-                logger.warning(f"Thread {self.application_name} encountered an exception {e}. Sleeping and trying again.")
+                logger.warning(
+                    f"Thread {self.application_name} encountered an exception {e}. Sleeping and trying again."
+                )
                 if restart_attempt == self.max_connection_retries:
                     self.stop()
                     logger.critical(f"Thread {self.application_name} died: {e}")
-            
 
-#TODO: Consider a parent connection class.
+
+# TODO: Consider a parent connection class.
 class CredentialedMQTTSensorConnection(ABC):
     """
     Connections to sensors which use credentials as their main form of auth.
     """
+
     def __init__(
         self,
         application_name: str,
@@ -275,7 +284,7 @@ class CredentialedMQTTSensorConnection(ABC):
         mqtt_port: int,
         credentials_dir: Path = Path(f"{ROOT_DIR}/.credentials"),
         env_file: Path = Path(f"{ROOT_DIR}/.env"),
-        max_retries: int = 10
+        max_retries: int = 10,
     ):
         self.application_name = application_name
         self.mqtt_host = mqtt_host
@@ -325,18 +334,15 @@ class CredentialedMQTTSensorConnection(ABC):
         pass
 
     @abstractmethod
-    def retrieve(self, push:bool = False) -> Any:
+    def retrieve(self, push: bool = False) -> Any:
         """Retrieve 'raw' data from a sensor connection."""
         pass
 
     def start(self, push: bool = False):
         if self._thread is None or not self._thread.is_alive():
             self._thread = threading.Thread(
-                    target=self._loop,
-                    args=(push,),
-                    daemon=True, 
-                    name=self.application_name
-                )
+                target=self._loop, args=(push,), daemon=True, name=self.application_name
+            )
             self._thread.start()
 
     def stop(self):
@@ -356,10 +362,13 @@ class CredentialedMQTTSensorConnection(ABC):
             except Exception as e:
                 restart_attempts += 1
                 time.sleep(300)
-                logger.warning(f"Thread {self.application_name} encountered an exception {e}. Sleeping and trying again.")
+                logger.warning(
+                    f"Thread {self.application_name} encountered an exception {e}. Sleeping and trying again."
+                )
                 if restart_attempts == self.max_retries:
                     self.stop()
                     logger.critical(f"Thread {self.application_name} has died: {e}.")
+
 
 class NetatmoConnection(CredentialedHTTPSensorConnection):
     """
@@ -372,16 +381,16 @@ class NetatmoConnection(CredentialedHTTPSensorConnection):
         credentials_dir: Path = Path(f"{ROOT_DIR}/.credentials"),
         env_file: Path = Path(f"{ROOT_DIR}/.env"),
         max_retries: int = 10,
-        interval: int = 300
+        interval: int = 300,
     ):
         super().__init__(
-                application_name = application_name,
-                credentials_dir = credentials_dir,
-                env_file = env_file,
-                max_retries = max_retries,
-                interval = interval
-                )
-        
+            application_name=application_name,
+            credentials_dir=credentials_dir,
+            env_file=env_file,
+            max_retries=max_retries,
+            interval=interval,
+        )
+
     @cached_property
     def _credentials(
         self,
@@ -415,36 +424,34 @@ class NetatmoConnection(CredentialedHTTPSensorConnection):
         return lnetatmo.ClientAuth(credentialFile=self._credentials)
 
     def retrieve(
-            self, 
-            push: bool=False,
-        ) -> List[Dict[str, Any]] | None: #type: ignore
+        self,
+        push: bool = False,
+    ) -> List[Dict[str, Any]] | None:  # type: ignore
         """Retrieve the latest untransformed observation set (one or more) from the Netatmo API."""
         attempt = 0
         while attempt < self.max_connection_retries:
             try:
                 netatmo_connection = lnetatmo.WeatherStationData(self._auth)
                 attempt = 0
-                if (payload:= netatmo_connection.rawData) is None:
+                if (payload := netatmo_connection.rawData) is None:
                     raise ValueError(
-                            "Netatmo Payload for Sensor " +
-                            f"{self.application_name} is empty."
-                            )
+                        "Netatmo Payload for Sensor "
+                        + f"{self.application_name} is empty."
+                    )
                 logger.info(
-                        f"Received payload from Netatmo application " +
-                        f"{self.application_name} from {len(payload)} sensors."
-                        )
+                    f"Received payload from Netatmo application "
+                    + f"{self.application_name} from {len(payload)} sensors."
+                )
                 network_monitor.add_named_count(
-                        "payloads_received",
-                        self.application_name, 1
-                        )
+                    "payloads_received", self.application_name, 1
+                )
                 if push:
                     netatmo_nws03.frost_upload(
-                            payload,
-                            application_name=self.application_name
-                            )
+                        payload, application_name=self.application_name
+                    )
                     return None
                 else:
-                    return payload 
+                    return payload
             # catching a type error is not strictly correct, see
             # PR: https://github.com/philippelt/netatmo-api-python/pull/100
             except (TimeoutError, URLError, TypeError) as e:
@@ -455,9 +462,8 @@ class NetatmoConnection(CredentialedHTTPSensorConnection):
                     + f"Error raised: {e}"
                 )
                 time.sleep(30)
-                return list(dict()) 
+                return list(dict())
         logger.warning(f"Netatmo sensor link down - NO DATA BEING COLLECTED.")
-    
 
 
 class TTSConnection(CredentialedMQTTSensorConnection):
@@ -473,11 +479,13 @@ class TTSConnection(CredentialedMQTTSensorConnection):
         credentials_dir: Path = Path(f"{ROOT_DIR}/.credentials"),
         env_file: Path = Path(f"{ROOT_DIR}/.env"),
     ):
-        super().__init__(application_name=application_name,
-                         mqtt_host=mqtt_host,
-                         mqtt_port=mqtt_port,
-                         credentials_dir=credentials_dir,
-                         env_file=env_file)
+        super().__init__(
+            application_name=application_name,
+            mqtt_host=mqtt_host,
+            mqtt_port=mqtt_port,
+            credentials_dir=credentials_dir,
+            env_file=env_file,
+        )
 
     @cached_property
     def _credentials(
@@ -519,6 +527,7 @@ class TTSConnection(CredentialedMQTTSensorConnection):
 
     def subscribe(self) -> None:
         client = self._auth
+
         # put a retrieved payload in the queue.
         def on_message(client, userdata, message):
             self.payload_queue.put(json.loads(message.payload))
@@ -532,14 +541,14 @@ class TTSConnection(CredentialedMQTTSensorConnection):
         client.loop_start()
         return None
 
-    #TODO: is 'retrieve' correct? This method retrieves but also transforms and pushes (through other functions.)
+    # TODO: is 'retrieve' correct? This method retrieves but also transforms and pushes (through other functions.)
     # either come up with a better name or separate functionality.
     def retrieve(
-            self,
-            push: bool = False,
-            timeout: int = 300,
-            max_retries: int = 10,
-            ) -> Dict | None:
+        self,
+        push: bool = False,
+        timeout: int = 300,
+        max_retries: int = 10,
+    ) -> Dict | None:
         """Return and empty payload queue."""
         if not self.subscribed:
             self.subscribe()
@@ -548,48 +557,50 @@ class TTSConnection(CredentialedMQTTSensorConnection):
             retrieve_success = False
             try:
                 payload_received = self.payload_queue.get(timeout=timeout)
-                network_monitor.add_named_count("payloads_received", self.application_name, 1)
+                network_monitor.add_named_count(
+                    "payloads_received", self.application_name, 1
+                )
                 attempts = 0 if payload_received else attempts
                 logger.debug(f"{payload_received=}")
-                sensor_model = payload_received.get("uplink_message", {}) \
-                                                .get("version_ids", {}) \
-                                                .get("model_id")
+                sensor_model = (
+                    payload_received.get("uplink_message", {})
+                    .get("version_ids", {})
+                    .get("model_id")
+                )
                 if not isinstance(sensor_model, str):
                     raise ValueError(
-                            f"{self.application_name}: expected str sensor_model but got {sensor_model=}")
+                        f"{self.application_name}: expected str sensor_model but got {sensor_model=}"
+                    )
                 logger.info(
-                        f"Received payload from TTS application: " +
-                        f"{self.application_name} from a {sensor_model} sensor."
-                        )
+                    f"Received payload from TTS application: "
+                    + f"{self.application_name} from a {sensor_model} sensor."
+                )
                 if push:
                     match sensor_model:
                         case "am308l":
                             milesight_am308L.frost_upload(
-                                    payload_received,
-                                    application_name=self.application_name
-                                    )
+                                payload_received, application_name=self.application_name
+                            )
                         case "am103l":
-                            logger.critical("Not implemented for this Milesight AM103L.")
+                            logger.critical(
+                                "Not implemented for this Milesight AM103L."
+                            )
                             network_monitor.add_named_count(
-                                    "rejected_payloads",
-                                    self.application_name,
-                                    1
-                                    )
+                                "rejected_payloads", self.application_name, 1
+                            )
 
                 retrieve_success = True
                 return payload_received
             except queue.Empty:
                 logger.warning(
-                        f"No data received from {self.application_name}" + 
-                        f"in {timeout} seconds, retry count: {attempts}."
-                        )
+                    f"No data received from {self.application_name}"
+                    + f"in {timeout} seconds, retry count: {attempts}."
+                )
                 attempts += 1
             if not retrieve_success:
                 network_monitor.add_named_count(
-                        "rejected_payloads",
-                        self.application_name,
-                        1
-                        )
+                    "rejected_payloads", self.application_name, 1
+                )
         raise TimeoutError(
             f"No messages retrieved for {self.application_name}."
             + f"Attempt {attempts} of {max_retries}."
