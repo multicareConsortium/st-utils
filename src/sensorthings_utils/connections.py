@@ -21,7 +21,7 @@ from paho.mqtt.client import Client as mqttClient
 
 # internal
 from .config import ROOT_DIR
-from .sensor_support import netatmo_nws03, milesight_am308L
+from .sensor_support import netatmo_nws03, milesight_am308L, milesight_am103L
 from .monitor import network_monitor
 
 # environment setup
@@ -582,12 +582,9 @@ class TTSConnection(CredentialedMQTTSensorConnection):
                                 payload_received, application_name=self.application_name
                             )
                         case "am103l":
-                            logger.critical(
-                                "Not implemented for this Milesight AM103L."
-                            )
-                            network_monitor.add_named_count(
-                                "rejected_payloads", self.application_name, 1
-                            )
+                            milesight_am103L.frost_upload(
+                                    payload_received, application_name=self.application_name
+                                    )
 
                 retrieve_success = True
                 return payload_received
