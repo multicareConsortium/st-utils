@@ -1,0 +1,114 @@
+{
+  "name": "as.up.data.forward",
+  "time": "2025-05-31T15:34:13.842668798Z",
+  "identifiers": [
+    {
+      "device_ids": {
+        "device_id": "ieq-thcpvl-010",
+        "application_ids": {
+          "application_id": "multicare-bucharest"
+        },
+        "dev_eui": "24E124707E427251",
+        "join_eui": "24E124C0002A0001",
+        "dev_addr": "260B10EC"
+      }
+    }
+  ],
+  "data": {
+    "@type": "type.googleapis.com/ttn.lorawan.v3.ApplicationUp",
+    "end_device_ids": {
+      "device_id": "ieq-thcpvl-010",
+      "application_ids": {
+        "application_id": "multicare-bucharest"
+      },
+      "dev_eui": "24E124707E427251",
+      "join_eui": "24E124C0002A0001",
+      "dev_addr": "260B10EC"
+    },
+    "correlation_ids": [
+      "gs:uplink:01JWKFNCVYSK1TBFS2299WZ03Z"
+    ],
+    "received_at": "2025-05-31T15:34:13.837913668Z",
+    "uplink_message": {
+      "session_key_id": "AZakgPM0R2xQeQarzOlUzw==",
+      "f_port": 85,
+      "f_cnt": 5032,
+      "frm_payload": "A2f6AARoegUAAAbLAQd9PAMIfeQBCXOBJwt91QEMfd0BAXVf",
+      "decoded_payload": {
+        "battery": 95,
+        "co2": 828,
+        "humidity": 61,
+        "light_level": 1,
+        "pir": "idle",
+        "pm10": 477,
+        "pm2_5": 469,
+        "pressure": 1011.3,
+        "temperature": 25,
+        "tvoc": 4.84
+      },
+      "rx_metadata": [
+        {
+          "gateway_ids": {
+            "gateway_id": "multicaregateway2",
+            "eui": "A84041FFFF29D466"
+          },
+          "time": "2025-05-31T15:34:13.536993Z",
+          "timestamp": 544807889,
+          "rssi": -76,
+          "channel_rssi": -76,
+          "snr": 11.2,
+          "frequency_offset": "-900",
+          "uplink_token": "Ch8KHQoRbXVsdGljYXJlZ2F0ZXdheTISCKhAQf//KdRmENG35IMCGgwI9cLswQYQ3a21rAIg6NDSyO3ZEQ==",
+          "channel_index": 2,
+          "received_at": "2025-05-31T15:34:13.541474093Z"
+        }
+      ],
+      "settings": {
+        "data_rate": {
+          "lora": {
+            "bandwidth": 125000,
+            "spreading_factor": 7,
+            "coding_rate": "4/5"
+          }
+        },
+        "frequency": "868500000",
+        "timestamp": 544807889,
+        "time": "2025-05-31T15:34:13.536993Z"
+      },
+      "received_at": "2025-05-31T15:34:13.633444338Z",
+      "consumed_airtime": "0.097536s",
+      "version_ids": {
+        "brand_id": "milesight-iot",
+        "model_id": "am308l",
+        "hardware_version": "1.x",
+        "firmware_version": "1.x",
+        "band_id": "EU_863_870"
+      },
+      "network_ids": {
+        "net_id": "000013",
+        "ns_id": "EC656E0000000181",
+        "tenant_id": "ttn",
+        "cluster_id": "eu1",
+        "cluster_address": "eu1.cloud.thethings.network"
+      },
+      "last_battery_percentage": {
+        "f_cnt": 4957,
+        "value": 94.861664,
+        "received_at": "2025-05-31T06:34:23.711073037Z"
+      }
+    }
+  },
+  "correlation_ids": [
+    "gs:uplink:01JWKFNCVYSK1TBFS2299WZ03Z"
+  ],
+  "origin": "ip-10-100-14-124.eu-west-1.compute.internal",
+  "context": {
+    "tenant-id": "CgN0dG4="
+  },
+  "visibility": {
+    "rights": [
+      "RIGHT_APPLICATION_TRAFFIC_READ"
+    ]
+  },
+  "unique_id": "01JWKFND2JYW4DDS3T2N86FHPN"
+}

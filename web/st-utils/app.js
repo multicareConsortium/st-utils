@@ -105,8 +105,10 @@ function highlightThingInList(locationName) {
         li.classList.remove('active-location');
     });
     
+
+    const escapedLocationName = locationName.replace(/"/g, '\\"');
     // Find and highlight the clicked location
-    const locationElement = document.querySelector(`#locations li[data-name="${locationName}"]`);
+    const locationElement = document.querySelector(`#locations li[data-name="${escapedLocationName}"]`);
     if (locationElement) {
         locationElement.classList.add('active-location');
         // Scroll the location into view in the list
