@@ -583,8 +583,8 @@ class TTSConnection(CredentialedMQTTSensorConnection):
                             )
                         case "am103l":
                             milesight_am103L.frost_upload(
-                                    payload_received, application_name=self.application_name
-                                    )
+                                payload_received, application_name=self.application_name
+                            )
 
                 retrieve_success = True
                 return payload_received

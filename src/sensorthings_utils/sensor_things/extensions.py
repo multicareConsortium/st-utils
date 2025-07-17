@@ -83,19 +83,19 @@ class SensorConfig:
                 valid_sensor_name[0],
                 valid_entity_contents[0],
                 valid_entity_sizes[0],
-                valid_iot_link[0]
+                valid_iot_link[0],
             ]
         ):
             main_error = f"{self._filepath.name} is an invalid config."
             logger.error(main_error)
             errors = (
-                [main_error] +
-                valid_sensor_name[1] + 
-                valid_entity_contents[1] +
-                valid_entity_sizes[1] +
-                valid_iot_link[1]
-                )
-                      
+                [main_error]
+                + valid_sensor_name[1]
+                + valid_entity_contents[1]
+                + valid_entity_sizes[1]
+                + valid_iot_link[1]
+            )
+
             network_monitor.add_count("sensor_config_fail", 1)
             return (False, errors)
         else:
@@ -124,7 +124,9 @@ class SensorConfig:
 
         return (True, [])
 
-    def _validate_entity_contents(self, unvalidated_data: Dict) -> Tuple[bool, List[str]]:
+    def _validate_entity_contents(
+        self, unvalidated_data: Dict
+    ) -> Tuple[bool, List[str]]:
         "Check that primary sensor things keys are there, and that the contents are as expected."
         expected_classes = [
             "sensors",
@@ -179,7 +181,9 @@ class SensorConfig:
         error_list = []
         for cls in expected_classes:
             if (actual_entity := unvalidated_data.get(cls)) is None:
-                error = f"Missing primary key: {cls}. Will not continue with validation."
+                error = (
+                    f"Missing primary key: {cls}. Will not continue with validation."
+                )
                 logger.error(error)
                 error_list.append(error)
                 return (False, error_list)
@@ -202,7 +206,10 @@ class SensorConfig:
                 for field in actual_entity[field_key]:
                     expected_type = expected_class_fields[cls][field]
                     if not isinstance(actual_entity[field_key][field], expected_type):
-                        error = f"{cls}.{field_key}.{field} is of the wrong type " + f"expected {expected_type}, got {type(actual_entity[field_key][field])}"
+                        error = (
+                            f"{cls}.{field_key}.{field} is of the wrong type "
+                            + f"expected {expected_type}, got {type(actual_entity[field_key][field])}"
+                        )
                         error_list.append(error)
                         logger.error(error)
                         invalid = True
@@ -220,10 +227,12 @@ class SensorConfig:
             - exactly one (1) sensor,
 
         """
-        #TODO: unimplemented
+        # TODO: unimplemented
         return (True, [])
 
-    def _validate_iot_links(self, unvalidated_data: Dict[str, Dict[str, Any]]) -> Tuple[bool, List[str]]:
+    def _validate_iot_links(
+        self, unvalidated_data: Dict[str, Dict[str, Any]]
+    ) -> Tuple[bool, List[str]]:
         """Validate a series of expected links between entities."""
 
         expected_iot_link_groups = {
@@ -252,16 +261,16 @@ class SensorConfig:
                         f"{self._filepath.name}.{entity_type}."
                         + f"{entity} has extra iot_links: "
                         + f"{extra_links}."
-                        )
+                    )
                     error_list.append(error)
                     logger.error(error)
                     invalid = True
                 if missing_links:
-                    error =(
+                    error = (
                         f"{self._filepath.name}.{entity_type}."
                         + f"{entity} is missing iot_link: "
                         f"{missing_links}."
-                            ) 
+                    )
                     error_list.append(error)
                     logger.error(error)
                     invalid = True
@@ -272,26 +281,22 @@ class SensorConfig:
                         error = (
                             f"{self._filepath.name}.{entity_type}."
                             + f"{entity} has an empty iot_link."
-                            )
-                        error_list.append(error)
-                        logger.error(
-                                error
                         )
+                        error_list.append(error)
+                        logger.error(error)
                         invalid = True
                         continue
                     for link in link_list:
                         try:
                             unvalidated_data[declared_datastream][link]
                         except KeyError as e:
-                            error =(
+                            error = (
                                 f"{self._filepath.name}.{entity_type}."
                                 + f"{entity} declares an iot_link not in config: "
                                 f"{link}."
-                                    ) 
-                            error_list.append(error)
-                            logger.error(
-                                    error
                             )
+                            error_list.append(error)
+                            logger.error(error)
                             invalid = True
 
         return (True, []) if not invalid else (False, error_list)

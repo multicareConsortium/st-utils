@@ -376,6 +376,8 @@ def observation_to_sensor_trace(url: str, return_url: bool = False) -> str | Non
             + f"Check the URL passed: {url}"
         )
         return None
+    if CONTAINER_ENVIRONMENT:
+        url = url.replace("localhost", "web")
     try:
         with request.urlopen(url) as response:
             datastream_url = json.loads(response.read())[
@@ -389,6 +391,6 @@ def observation_to_sensor_trace(url: str, return_url: bool = False) -> str | Non
             return json.loads(response.read())["name"]
 
     except error.URLError as e:
-        logger.warning(f"URL Error: {e}")
+        logger.warning(f"Unable to map sensor to created observation. URL Error: {e}")
     except KeyError as e:
         logger.warning(f"Missing expected key: {e}")
