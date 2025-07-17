@@ -99,3 +99,7 @@ observedProperties:
     properties: *fill <dict-like object or null>
     iot_links:
       datastreams: *fill <array(datastream names(str))> 
+
+networkMetadata:
+  network_name: *fill <str>
+  host: *fill <str or null> 

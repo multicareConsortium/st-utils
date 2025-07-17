@@ -6,10 +6,17 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "lnetatmo>=4.2.0",
+    "paho-mqtt>=2.1.0",
     "pydantic>=2.10.6",
     "python-dotenv>=1.0.1",
     "pyyaml>=6.0.2",
 ]
+
+[project.scripts]
+stu = "sensorthings_utils.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
 
 [build-system]
 requires = ["setuptools"]
@@ -24,4 +31,13 @@ dev = [
 [tool.pytest.ini_options]
 testpaths = [
     "tests"
+]
+filterwarnings = [
+    "ignore:The 'User' class is no longer maintained by Netatmo:DeprecationWarning",
+    "ignore:The 'DeviceList' class was renamed 'WeatherStationData':DeprecationWarning",
+    "ignore:The 'WelcomeData' class was renamed 'HomeData':DeprecationWarning"
+]
+markers = [
+    "slow:",
+    "real: makes calls to real resources (APIs, servers, databases, etc.)"
 ]
