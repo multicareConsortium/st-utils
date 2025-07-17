@@ -6,7 +6,7 @@ import time
 import logging
 import threading
 from collections import defaultdict
-from typing import Mapping
+import sys
 
 logger = logging.getLogger("network_monitor")
 
@@ -64,7 +64,7 @@ class NetworkMonitor:
             thread_line = (
                 f"All original threads alive: {self.starting_application_threads}."
                 if not dead_threads
-                else f"Some threads have died: {dead_threads}."
+                else f"Some threads have died: {dead_threads}. Killing app."
             )
             logger.info(
                 f"Periodic Health Report {"-"*(len(thread_line)-len("Period Health Report"))}"
@@ -73,6 +73,7 @@ class NetworkMonitor:
                 logger.info(thread_line)
             else:
                 logger.warning(thread_line)
+                sys.exit(1)
             # Report succesful pushes:
             logger.info(f"Uptime: {datetime.now()-self.start_time}")
             if self.sensor_config_fail > 0:

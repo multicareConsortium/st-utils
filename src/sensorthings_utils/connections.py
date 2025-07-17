@@ -284,7 +284,7 @@ class CredentialedMQTTSensorConnection(ABC):
         mqtt_port: int,
         credentials_dir: Path = Path(f"{ROOT_DIR}/.credentials"),
         env_file: Path = Path(f"{ROOT_DIR}/.env"),
-        max_retries: int = 10,
+        max_retries: int = 1,
     ):
         self.application_name = application_name
         self.mqtt_host = mqtt_host
@@ -363,7 +363,9 @@ class CredentialedMQTTSensorConnection(ABC):
                 restart_attempts += 1
                 time.sleep(300)
                 logger.warning(
-                    f"Thread {self.application_name} encountered an exception {e}. Sleeping and trying again."
+                    f"Thread {self.application_name} encountered an exception: "+
+                    f"{e}. Sleeping {restart_attempts} of {self.max_retries} " +
+                    "and trying again."
                 )
                 if restart_attempts == self.max_retries:
                     self.stop()
