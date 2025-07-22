@@ -17,7 +17,7 @@ services:
     restart: unless-stopped
 
   web:
-    image: fraunhoferiosb/frost-server:2.5.3
+    image: fraunhoferiosb/frost-server:2.6
     volumes:
       - ../web:/usr/local/tomcat/webapps/st-utils
     env_file:
