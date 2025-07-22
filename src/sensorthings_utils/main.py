@@ -82,7 +82,7 @@ def push_available(
     )
     os.environ["FROST_ENDPOINT"] = frost_endpoint
     logging.info(f"Sensor stream starts in 30s, pushing too: {frost_endpoint}")
-    time.sleep(1)
+    time.sleep(30)
     sensor_connections: set[
         CredentialedHTTPSensorConnection | CredentialedMQTTSensorConnection
     ] = set()
