@@ -30,7 +30,7 @@ def _filter(payload: Dict, exclude: List[str] | None = None) -> Dict[str, Any]:
         data["sensor_name"] = payload["end_device_ids"]["dev_eui"]
         if exclude and data["sensor_name"] in exclude:
             return {}
-        data["phenomenon_time"] = payload["uplink_message"]["rx_metadata"][0]["time"]
+        data["phenomenon_time"] = payload["uplink_message"]["rx_metadata"][0]["received_at"]
         data["observations"] = payload["uplink_message"]["decoded_payload"]
     except KeyError as e:
         logger.debug(f"{payload=}")
