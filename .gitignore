@@ -34,4 +34,7 @@ docker-compose.override.yml
 # Sensorconfigs
 sensor_configs/*
 
+# Observations
+observations/*
+
 *logs/
