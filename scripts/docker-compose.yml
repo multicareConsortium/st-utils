@@ -13,6 +13,7 @@ services:
       - CONTAINER_ENVIRONMENT=true
     volumes:
       - python-app_credentials:/app/.credentials
+      - python-app_logs:/app/logs
     command: ["uv", "run", "/app/src/sensorthings_utils/main.py"]
     restart: unless-stopped
 
@@ -20,6 +21,7 @@ services:
     image: fraunhoferiosb/frost-server:2.6
     volumes:
       - ../web:/usr/local/tomcat/webapps/st-utils
+      - python-app_logs:/usr/local/tomcat/webapps/st-utils/logs:ro
     env_file:
       - ../.env
     environment:
@@ -63,3 +65,4 @@ services:
 volumes:
   postgis_volume:
   python-app_credentials:
+  python-app_logs:
