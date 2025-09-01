@@ -70,8 +70,8 @@ def netatmo_auth_check(authentication: ClientAuth) -> bool:
 
 
 if __name__ == "__main__":
-    print(f"{ROOT_DIR} Exists: {ROOT_DIR.exists()}")
-    print(f"{CONFIG_PATHS} Exists: {CONFIG_PATHS.exists()}")
-    print(f"{ENV_FILE} Exists: {ENV_FILE.exists()}")
+    print(f"{ROOT_DIR=} Exists: {ROOT_DIR.exists()}")
+    print(f"{CONFIG_PATHS=} Exists: {CONFIG_PATHS.exists()}")
+    print(f"{ENV_FILE=} Exists: {ENV_FILE.exists()}")
 
 # another comment.
