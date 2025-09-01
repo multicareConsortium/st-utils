@@ -91,7 +91,10 @@ class NetworkMonitor:
             health_report.append(msg)
             logger.info(msg)
             if self.sensor_config_fail > 0:
-                msg = f"{self.sensor_config_fail} sensor configuration file/s are invalid!"
+                msg = (
+                        f"{self.sensor_config_fail} sensor configuration " + 
+                        f"file/s are invalid!"
+                       )
                 health_report.append(msg)
                 logger.warning(msg)
             for k, v in self.payloads_received.items():
