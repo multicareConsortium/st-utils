@@ -8,6 +8,8 @@ import threading
 from collections import defaultdict
 import sys
 
+from sensorthings_utils.config import ROOT_DIR
+
 logger = logging.getLogger("network_monitor")
 
 
@@ -58,45 +60,68 @@ class NetworkMonitor:
 
     def report(self, interval: int = 30):
         time.sleep(60 * interval)
+        health_report: list[str] = [
+                "st-utils instance", 
+                "Time of report:",
+                str(datetime.now())
+                ]
+
         with self._lock:
             # Report on active threads.
             dead_threads = self.starting_application_threads - self.live_threads
-            thread_line = (
+            thread_msg = (
                 f"All original threads alive: {self.starting_application_threads}."
                 if not dead_threads
                 else f"Some threads have died: {dead_threads}. Killing app."
             )
-            logger.info(
-                f"Periodic Health Report {"-"*(len(thread_line)-len("Period Health Report"))}"
-            )
+            header_msg = (
+                    f"Periodic Health Report" +
+                    f"{"-"*(len(thread_msg)-len("Period Health Report"))}"
+            ) 
+            health_report.append(header_msg)
+            logger.info(header_msg)
             if not dead_threads:
-                logger.info(thread_line)
+                logger.info(thread_msg)
             else:
-                logger.warning(thread_line)
+                logger.warning(thread_msg)
                 sys.exit(1)
+            health_report.append(thread_msg)
             # Report succesful pushes:
-            logger.info(f"Uptime: {datetime.now()-self.start_time}")
+            msg = f"Uptime: {datetime.now() - self.start_time}" 
+            health_report.append(msg)
+            logger.info(msg)
             if self.sensor_config_fail > 0:
-                logger.warning(
-                    f"{self.sensor_config_fail} sensor configuration file/s are invalid!"
-                )
+                msg = f"{self.sensor_config_fail} sensor configuration file/s are invalid!"
+                health_report.append(msg)
+                logger.warning(msg)
             for k, v in self.payloads_received.items():
-                logger.info(f"Payloads received from {k} → {v}")
+                msg = f"Payloads received from {k} : {v}"
+                health_report.append(msg)
+                logger.info(msg)
             for k, v in self.rejected_payloads.items():
-                logger.warning(f"Payloads rejected for {k} → {v}")
+                msg = f"Payloads rejected for {k} : {v}"
+                health_report.append(msg)
+                logger.warning(msg)
             for k, v in self.push_success.items():
                 time_since_last_push = (time.time() - self.last_push_time[k]) / 60
-                logger.info(
-                    f"Observations created for {k} → {v} (Time since last push: {time_since_last_push:.2f}m)."
-                )
+                msg = f"Observations created for {k} : {v} (Time since last push: {time_since_last_push:.2f}m)." 
+                health_report.append(msg)
+                logger.info(msg)
             for k, v in self.push_fail.items():
-                logger.warning(f"Rejected observations for {k} → {v}")
+                msg = f"Rejected observations for {k} : {v}"
+                health_report.append(msg)
+                logger.warning(msg)
             for k, v in self.last_push_time.items():
                 if v - time.time() > 3600:
-                    logger.warning(
-                        f"Have not received observations from {k} in {v:.2f}."
-                    )
-            logger.info("Check logs for full details.")
+                    msg = f"Have not received observations from {k} in {v:.2f}."
+                    health_report.append(msg)
+                    logger.warning(msg)
 
+            logger.info("Check logs for full details.")
+        
+        health_file = ROOT_DIR / "logs" / "health.log"
+        with open(health_file, "w", encoding="utf-8") as f:
+            f.write("\n".join(health_report) + "\n")
 
 network_monitor = NetworkMonitor()
+

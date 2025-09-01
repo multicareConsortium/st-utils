@@ -10,7 +10,11 @@ from pathlib import Path
 # external
 
 # internal
-from sensorthings_utils.config import SENSOR_CONFIG_FILES, FROST_ENDPOINT_DEFAULT
+from sensorthings_utils.config import (
+        SENSOR_CONFIG_FILES,
+        FROST_ENDPOINT_DEFAULT,
+        ROOT_DIR
+        )
 from sensorthings_utils.sensor_things.extensions import (
     SensorConfig,
     SensorArrangement,
@@ -37,8 +41,8 @@ main_logger.setLevel(logging.INFO)
 warning_logger = logging.getLogger("warnings")
 warning_logger.setLevel(logging.WARNING)
 # File Handler (general)--------------------------------------------------------
-logfile_name = "general.log"
-logfile = Path("logs/" + logfile_name)
+general_logfile_name = "general.log"
+logfile = Path(ROOT_DIR / ("logs/" + general_logfile_name))
 logfile.parent.mkdir(exist_ok=True)
 file_handler = TimedRotatingFileHandler(
     filename=logfile, when="midnight", interval=1, backupCount=30, encoding="utf-8"
