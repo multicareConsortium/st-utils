@@ -102,9 +102,14 @@ class NetworkMonitor:
                 msg = f"Payloads rejected for {k} : {v}"
                 health_report.append(msg)
                 logger.warning(msg)
-            for k, v in self.push_success.items():
+            for i, (k, v) in enumerate(self.push_success.items()):
                 time_since_last_push = (time.time() - self.last_push_time[k]) / 60
-                msg = f"Observations created for {k} : {v} (Time since last push: {time_since_last_push:.2f}m)." 
+                warning_msg = "WARNING: " if time_since_last_push > 60 else ""
+                msg = (
+                        f"{i} - Observations created for {k} : {v} " + 
+                        f"{warning_msg}Time since last push: " +
+                        f"{time_since_last_push:.2f}m)." 
+                    )
                 health_report.append(msg)
                 logger.info(msg)
             for k, v in self.push_fail.items():
