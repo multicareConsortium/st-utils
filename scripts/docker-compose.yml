@@ -6,6 +6,7 @@ services:
     depends_on:
       - web
       - database
+      - mosquitto
     env_file:
       - ../.env
     environment:
@@ -38,13 +39,23 @@ services:
       - auth_db_url=jdbc:postgresql://database:5432/sensorthings
       - auth_db_username=sta-manager
       - auth_autoUpdateDatabase=true
-      - auth.allowAnonymousRead=true
+      - auth_allowAnonymousRead=true
     ports:
       - 8080:8080
-      - 1883:1883
     depends_on:
       database:
         condition: service_healthy
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    env_file:
+      - ../.env
+    ports:
+      - 1883:1883
+    volumes:
+      - ../mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - mosquitto_data:/mosquitto/data
+      - mosquitto_log:/mosquitto/log
 
   database:
     image: postgis/postgis:16-3.4-alpine
@@ -66,3 +77,5 @@ volumes:
   postgis_volume:
   python-app_credentials:
   python-app_logs:
+  mosquitto_log:
+  mosquitto_data:
