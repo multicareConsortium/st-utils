@@ -17,4 +17,5 @@ fi
 
 chown mosquitto:mosquitto $PASSWORD_FILE
 echo "Starting Mosquitto..."
+exec mosquitto -c /mosquitto/config/mosquitto.conf
 
