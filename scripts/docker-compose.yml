@@ -54,8 +54,10 @@ services:
       - 1883:1883
     volumes:
       - ../mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ../mosquotto/init-mosquitto.sh:/mosquitto/init-mosquitto.sh:ro
       - mosquitto_data:/mosquitto/data
       - mosquitto_log:/mosquitto/log
+    entrypoint: ["/bin/sh", "-c", "chmod +x /mosquitto/init-mosquitto.sh && /mosquitto/init-mosquitto.sh"]
 
   database:
     image: postgis/postgis:16-3.4-alpine
