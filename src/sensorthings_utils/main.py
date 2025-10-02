@@ -90,6 +90,8 @@ def push_available(
     sensor_connections: set[
         CredentialedHTTPSensorConnection | CredentialedMQTTSensorConnection
     ] = set()
+    if not SENSOR_CONFIG_FILES:
+        raise ValueError(f"No sensor configurations passed.")
     for f in SENSOR_CONFIG_FILES:
         if f.name in exclude:
             continue
