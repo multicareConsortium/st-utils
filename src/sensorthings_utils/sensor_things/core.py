@@ -117,9 +117,6 @@ class Observation(BaseModel):
     def st_type(self) -> str:
         return self.__class__.__name__
 
-    @property
-    def as_dict(self) -> dict[Any, Any]:
-        return self.__dict__
 
 class TimePeriod(BaseModel):
     start: datetime
