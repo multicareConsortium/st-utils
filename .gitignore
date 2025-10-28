@@ -35,5 +35,5 @@ docker-compose.override.yml
 
 # Observations
 observations/*
-
+*.csv
 *logs/
