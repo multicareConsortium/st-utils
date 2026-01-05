@@ -6,6 +6,11 @@
 name: st-utils
 
 services:
+  web:
+    volumes:
+      - ../web/st-utils:/usr/local/tomcat/webapps/st-utils
+      - python-app_logs:/usr/local/tomcat/webapps/st-utils/logs:ro
+
   python-app:
     secrets:
       - application_credentials

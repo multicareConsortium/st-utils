@@ -8,7 +8,6 @@ name: st-utils-appless-auth
 services:
   web:
     volumes:
-      - ../web:/usr/local/tomcat/webapps/st-utils
       - ./init-frost.sh:/init-auth-frost.sh
     secrets:
       - frost_credentials
