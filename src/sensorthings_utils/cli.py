@@ -2,6 +2,8 @@
 
 # standard
 import argparse
+import importlib
+import inspect
 import json
 import logging
 import os
@@ -15,6 +17,7 @@ import yaml
 # internal
 from .paths import CREDENTIALS_DIR, TOKENS_DIR, APPLICATION_CONFIG_FILE
 from .preflight.validation import validate_all_credentials
+from .connections import HTTPSensorApplicationConnection, MQTTSensorApplicationConnection, SensorApplicationConnection
 
 logger = logging.getLogger("st-utils")
 logger.setLevel(logging.INFO)
@@ -468,6 +471,221 @@ def _setup_application_credentials(app_name: str = None):
         return False
 
 
+def _get_available_connection_classes(connection_type: str):
+    """
+    Get available connection classes for a given connection type.
+    
+    Args:
+        connection_type: "http" or "mqtt"
+        
+    Returns:
+        List of connection class names
+    """
+    import sensorthings_utils.connections as connections_module
+    
+    base_class = HTTPSensorApplicationConnection if connection_type == "http" else MQTTSensorApplicationConnection
+    available_classes = []
+    
+    # Get all members of the connections module
+    for name, obj in inspect.getmembers(connections_module):
+        # Check if it's a class, ends with "Connection", and is a subclass of the base class
+        if (inspect.isclass(obj) and 
+            name.endswith("Connection") and 
+            issubclass(obj, base_class) and 
+            obj is not base_class and
+            obj is not SensorApplicationConnection):
+            available_classes.append(name)
+    
+    return sorted(available_classes)
+
+
+def _add_application_to_config():
+    """Add a new application to application-configs.yml."""
+    print("\n--- Add Application to Config ---")
+    
+    # Step 1: Ask for connection type with numeric selection
+    while True:
+        print("\nConnection type:")
+        print("  [1] HTTP")
+        print("  [2] MQTT")
+        choice = input("Select connection type [1-2]: ").strip()
+        if choice == "1":
+            connection_type = "http"
+            break
+        elif choice == "2":
+            connection_type = "mqtt"
+            break
+        else:
+            print("Invalid selection. Please enter 1 or 2.")
+    
+    # Step 2: Ask for application name
+    while True:
+        app_name = input("\nApplication name: ").strip()
+        if app_name:
+            break
+        print("Application name cannot be empty. Please try again.")
+    
+    # Load existing config
+    config = {}
+    if APPLICATION_CONFIG_FILE.exists():
+        try:
+            with open(APPLICATION_CONFIG_FILE, "r") as f:
+                config = yaml.safe_load(f) or {}
+        except Exception as e:
+            print(f"Error reading config file: {e}")
+            return False
+    else:
+        # File doesn't exist, create new structure
+        config = {"applications": {}}
+    
+    # Check if application already exists
+    if "applications" in config and app_name in config["applications"]:
+        overwrite = input(f"\nApplication '{app_name}' already exists. Overwrite? (yes/no) [no]: ").strip().lower()
+        if overwrite != "yes":
+            print("Cancelled.")
+            return False
+    
+    # Initialize applications dict if needed
+    if "applications" not in config:
+        config["applications"] = {}
+    
+    # Build application config
+    app_config = {}
+    
+    # Common fields - Authentication type with numeric selection
+    while True:
+        print("\nAuthentication type:")
+        print("  [1] tokens")
+        print("  [2] credentials")
+        choice = input("Select authentication type [1-2]: ").strip()
+        if choice == "1":
+            app_config["authentication_type"] = "tokens"
+            break
+        elif choice == "2":
+            app_config["authentication_type"] = "credentials"
+            break
+        else:
+            print("Invalid selection. Please enter 1 or 2.")
+    
+    # Connection class - show available options
+    available_classes = _get_available_connection_classes(connection_type)
+    if not available_classes:
+        print(f"\nNo {connection_type.upper()} connection classes found in connections.py")
+        return False
+    
+    while True:
+        print(f"\nAvailable {connection_type.upper()} connection classes:")
+        for i, class_name in enumerate(available_classes, 1):
+            print(f"  [{i}] {class_name}")
+        choice = input(f"Select connection class [1-{len(available_classes)}]: ").strip()
+        try:
+            idx = int(choice) - 1
+            if 0 <= idx < len(available_classes):
+                app_config["connection_class"] = available_classes[idx]
+                break
+            else:
+                print(f"Invalid selection. Please enter a number between 1 and {len(available_classes)}.")
+        except ValueError:
+            print("Invalid input. Please enter a number.")
+    
+    if connection_type == "http":
+        # HTTP-specific fields
+        interval = input("\nInterval (optional, press Enter to skip): ").strip()
+        if interval:
+            while True:
+                try:
+                    app_config["interval"] = int(interval)
+                    break
+                except ValueError:
+                    interval = input("Invalid interval value. Must be a number. Try again (or press Enter to skip): ").strip()
+                    if not interval:
+                        break
+        
+        max_retries = input("Max retries (optional, press Enter to skip): ").strip()
+        if max_retries:
+            while True:
+                try:
+                    app_config["max_retries"] = int(max_retries)
+                    break
+                except ValueError:
+                    max_retries = input("Invalid max_retries value. Must be a number. Try again (or press Enter to skip): ").strip()
+                    if not max_retries:
+                        break
+        
+        expected_sensors = input("Expected sensors (optional, press Enter to skip): ").strip()
+        if expected_sensors:
+            while True:
+                try:
+                    app_config["expected_sensors"] = int(expected_sensors)
+                    break
+                except ValueError:
+                    expected_sensors = input("Invalid expected_sensors value. Must be a number. Try again (or press Enter to skip): ").strip()
+                    if not expected_sensors:
+                        break
+    
+    else:  # mqtt
+        # MQTT-specific fields
+        max_retries = input("\nMax retries (optional, press Enter to skip): ").strip()
+        if max_retries:
+            while True:
+                try:
+                    app_config["max_retries"] = int(max_retries)
+                    break
+                except ValueError:
+                    max_retries = input("Invalid max_retries value. Must be a number. Try again (or press Enter to skip): ").strip()
+                    if not max_retries:
+                        break
+        
+        while True:
+            host = input("Host: ").strip()
+            if host:
+                app_config["host"] = host
+                break
+            print("Host is required for MQTT applications. Please try again.")
+        
+        port = input("Port [8883]: ").strip()
+        if port:
+            while True:
+                try:
+                    app_config["port"] = int(port)
+                    break
+                except ValueError:
+                    port = input("Invalid port value. Must be a number. Try again: ").strip()
+        else:
+            app_config["port"] = 8883
+        
+        while True:
+            topic = input("Topic: ").strip()
+            if topic:
+                app_config["topic"] = topic
+                break
+            print("Topic is required for MQTT applications. Please try again.")
+        
+        expected_sensors = input("Expected sensors (optional, press Enter to skip): ").strip()
+        if expected_sensors:
+            while True:
+                try:
+                    app_config["expected_sensors"] = int(expected_sensors)
+                    break
+                except ValueError:
+                    expected_sensors = input("Invalid expected_sensors value. Must be a number. Try again (or press Enter to skip): ").strip()
+                    if not expected_sensors:
+                        break
+    
+    # Add application to config
+    config["applications"][app_name] = app_config
+    
+    # Save config
+    try:
+        with open(APPLICATION_CONFIG_FILE, "w") as f:
+            yaml.safe_dump(config, f, default_flow_style=False, sort_keys=False, indent=2)
+        print(f"\n✓ Added '{app_name}' to {APPLICATION_CONFIG_FILE.name}")
+        return True
+    except Exception as e:
+        print(f"Error saving config file: {e}")
+        return False
+
+
 def _setup_token_file(token_name: str = None):
     """Setup a new token file.
     
@@ -522,12 +740,13 @@ def _show_main_menu(existing):
         print("[4] Overwrite Tomcat users" + (" ✓" if existing['tomcat'] else ""))
         print("[5] Add/Overwrite application credentials" + (" ✓" if existing['application'] else ""))
         print("[6] Add new token file")
+        print("[7] Add application to config")
         token_status = f" ({len(existing['tokens'])} existing)" if existing['tokens'] else " (none)"
-        print(f"[7] Manage existing token files{token_status}")
-        print(f"[8] Show configured applications{app_summary}")
-        print("[9] Exit")
+        print(f"[8] Manage existing token files{token_status}")
+        print(f"[9] Show configured applications{app_summary}")
+        print("[10] Exit")
         
-        choice = input("\nSelect an option [9]: ").strip() or "9"
+        choice = input("\nSelect an option [10]: ").strip() or "10"
         
         if choice == "1":
             setup_frost_credentials()
@@ -579,13 +798,15 @@ def _show_main_menu(existing):
                 existing = _check_existing_and_valid_credentials()  # Refresh token list
                 existing.pop('_validation_results', None)  # Remove validation results
         elif choice == "7":
+            _add_application_to_config()
+        elif choice == "8":
             _manage_tokens(existing['tokens'])
             existing = _check_existing_and_valid_credentials()  # Refresh token list
             existing.pop('_validation_results', None)  # Remove validation results
-        elif choice == "8":
+        elif choice == "9":
             _show_application_status()
             input("\nPress Enter to continue...")
-        elif choice == "9":
+        elif choice == "10":
             print("\nExiting setup.")
             break
         else:
