@@ -2,8 +2,8 @@
 
 # standard
 import json
+import subprocess
 from getpass import getpass
-
 # internal
 from ..paths import CREDENTIALS_DIR
 from .system_checks import _check_postgres_persistent_volume
@@ -21,6 +21,9 @@ def setup_frost_credentials():
     }
     
     frost_file = CREDENTIALS_DIR / "frost_credentials.json"
+    if not frost_file.exists():
+        frost_file.touch()
+
     with open(frost_file, "w") as f:
         json.dump(frost_creds, f, indent=4)
     print(f"✓ Created/Updated {frost_file}")
@@ -34,25 +37,42 @@ def _setup_postgres_credentials():
     # Check if persistent volume exists - CRITICAL WARNING
     has_persistent_volume = _check_postgres_persistent_volume()
     if has_persistent_volume:
-        print("\n🚨 CRITICAL WARNING: PostgreSQL persistent volume detected!")
-        print("   Changing the password here will LOCK YOU OUT of the database!")
-        print("   The database still has the old password stored in the persistent volume.")
-        print("\n   To safely change the password:")
-        print("   1. Connect to the running database:")
-        print("      docker compose exec database psql -U <current_user> -d sensorthings")
-        print("   2. Run: ALTER USER <username> WITH PASSWORD '<new_password>';")
-        print("   3. Then update postgres_credentials.json with the new password")
-        print("   4. Restart containers: docker compose restart")
-        print("\n   Or, if you want to start fresh (⚠️  DATA LOSS):")
-        print("   docker compose down -v  # Removes volumes")
-        print("   # Then run setup again")
+        created_at = subprocess.run(
+            [
+                "docker", 
+                "volume", 
+                "inspect", 
+                "st-utils-production_postgis_volume", 
+                "--format", 
+                "{{.CreatedAt}}"
+                ],
+            capture_output=True,
+            text=True,
+            timeout=5
+        ).stdout.strip()
+        print(
+            f"\n🚨 CRITICAL WARNING: PostgreSQL production persistent volume created at {created_at} detected!\n"
+            "   Changing the password here will LOCK YOU OUT of the database!\n"
+            "   The database still has the old password stored in the persistent volume.\n"
+            "\n"
+            "   To safely change the password:\n"
+            "   1. Connect to the running database:\n"
+            "      docker compose exec database psql -U <current_user> -d sensorthings\n"
+            "   2. Run: ALTER USER <username> WITH PASSWORD '<new_password>';\n"
+            "   3. Then update postgres_credentials.json with the new password\n"
+            "   4. Restart containers: docker compose restart\n"
+            "\n"
+            "   Or, if you want to start fresh (⚠️  DATA LOSS):\n"
+            "   docker compose down -v  # Removes volumes\n"
+            "   # Then run setup again"
+        )
         
         response = input("\n   Continue anyway? This may lock you out! (yes/no) [no]: ").strip().lower()
         if response != 'yes':
             print("   Skipping PostgreSQL credentials setup.")
             return False
     
-    postgres_user = input("PostgreSQL user [sta-manager]: ").strip() or "sta-manager"
+    postgres_user = input("PostgreSQL user [sta-admin]: ").strip() or "sta-admin"
     postgres_password = getpass("PostgreSQL password: ")
     
     postgres_creds = {
@@ -77,14 +97,26 @@ def _setup_mqtt_credentials():
     """Setup MQTT credentials."""
     print("\n--- MQTT Credentials ---")
     mqtt_users = {}
+    user_count = 0
     
     while True:
-        user_key = input("\nMQTT user key (e.g., mqtt_user_1) [press Enter to finish]: ").strip()
-        if not user_key:
-            break
+        user_count += 1
+        if user_count == 1:
+            # First user is required, use default username
+            user_key = input(f"\nMQTT user key (e.g., mqtt_user_1) [mqtt_user_1]: ").strip() or "mqtt_user_1"
+            username = input(f"  Username for {user_key} [sta-admin]: ").strip() or "sta-admin"
+        else:
+            # Additional users are optional
+            user_key = input("\nMQTT user key (e.g., mqtt_user_2) [press Enter to finish]: ").strip()
+            if not user_key:
+                break
+            username = input(f"  Username for {user_key} [sta-admin]: ").strip() or "sta-admin"
         
-        username = input(f"  Username for {user_key}: ").strip()
-        password = getpass(f"  Password for {user_key}: ")
+        password = getpass(f"  Password for {username}: ")
+        if not password:
+            print("  ⚠️  Password is required. Please try again.")
+            user_count -= 1
+            continue
         
         topics = []
         print("  Topics (press Enter with empty name to finish):")
@@ -111,16 +143,24 @@ def _setup_mqtt_credentials():
 
 
 def _setup_tomcat_users():
-    """Setup Tomcat users."""
+    """Setup Tomcat users.
+    
+    If no users are provided, the file will be deleted to allow public access.
+    """
     print("\n--- Tomcat Users (Webapp Authentication) ---")
+    print("Leave empty to allow public access (no authentication required).")
     users = []
     
     while True:
-        username = input("\nTomcat username [press Enter to finish]: ").strip()
+        username = input("\nTomcat username [press Enter to finish/skip]: ").strip()
         if not username:
             break
         
         password = getpass(f"  Password for {username}: ")
+        if not password:
+            print("  ⚠️  Password is required. Please try again.")
+            continue
+        
         roles = input(f"  Roles (comma-separated) [webapp-users]: ").strip() or "webapp-users"
         
         users.append({
@@ -129,8 +169,9 @@ def _setup_tomcat_users():
             "roles": roles
         })
     
+    tomcat_file = CREDENTIALS_DIR / "tomcat-users.xml"
+    
     if users:
-        tomcat_file = CREDENTIALS_DIR / "tomcat-users.xml"
         xml_content = '''<?xml version="1.0" encoding="UTF-8"?>
 <tomcat-users xmlns="http://tomcat.apache.org/xml"
               xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -145,8 +186,15 @@ def _setup_tomcat_users():
         with open(tomcat_file, "w") as f:
             f.write(xml_content)
         print(f"✓ Created/Updated {tomcat_file}")
-        return True
-    return False
+    else:
+        # No users provided - delete file to allow public access
+        if tomcat_file.exists():
+            tomcat_file.unlink()
+            print(f"✓ Removed {tomcat_file} - application will be publicly accessible")
+        else:
+            print("✓ No authentication file - application will be publicly accessible")
+    
+    return True
 
 
 def _setup_application_credentials(app_name: str = None):
