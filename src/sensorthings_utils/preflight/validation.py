@@ -116,39 +116,6 @@ def validate_mqtt_credentials(file_path: Path) -> Tuple[bool, List[str]]:
         return (False, errors)
 
 
-def validate_application_credentials(file_path: Path) -> Tuple[bool, List[str]]:
-    """
-    Validate application credentials file structure.
-    
-    Args:
-        file_path: Path to the application_credentials.json file
-        
-    Returns:
-        Tuple of (is_valid, list_of_errors)
-    """
-    if not file_path.exists():
-        return (False, [f"File does not exist: {file_path}"])
-    
-    try:
-        with open(file_path, "r") as f:
-            data = json.load(f)
-    except json.JSONDecodeError as e:
-        return (False, [f"Invalid JSON in {file_path.name}: {str(e)}"])
-    except Exception as e:
-        return (False, [f"Error reading {file_path.name}: {str(e)}"])
-    
-    try:
-        AppCredentialStore.model_validate(data)
-        return (True, [])
-    except ValidationError as e:
-        errors = [f"Validation errors in {file_path.name}:"]
-        for error in e.errors():
-            field = " -> ".join(str(loc) for loc in error["loc"])
-            msg = error["msg"]
-            errors.append(f"  - {field}: {msg}")
-        return (False, errors)
-
-
 def validate_tomcat_users(file_path: Path) -> Tuple[bool, List[str]]:
     """
     Validate Tomcat users XML file structure.
