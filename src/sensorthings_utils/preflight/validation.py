@@ -116,47 +116,6 @@ def validate_mqtt_credentials(file_path: Path) -> Tuple[bool, List[str]]:
         return (False, errors)
 
 
-def validate_tomcat_users(file_path: Path) -> Tuple[bool, List[str]]:
-    """
-    Validate Tomcat users XML file structure.
-    
-    This performs basic XML structure validation. For full validation,
-    consider using an XML parser library.
-    
-    Args:
-        file_path: Path to the tomcat-users.xml file
-        
-    Returns:
-        Tuple of (is_valid, list_of_errors)
-    """
-    if not file_path.exists():
-        return (False, [f"File does not exist: {file_path}"])
-    
-    try:
-        with open(file_path, "r") as f:
-            content = f.read()
-    except Exception as e:
-        return (False, [f"Error reading {file_path.name}: {str(e)}"])
-    
-    errors = []
-    
-    # Basic XML structure checks
-    if not content.strip().startswith("<?xml"):
-        errors.append(f"{file_path.name} does not appear to be a valid XML file")
-    
-    if "<tomcat-users" not in content:
-        errors.append(f"{file_path.name} does not contain <tomcat-users> root element")
-    
-    # Check for at least one user element
-    if "<user " not in content and '<user username=' not in content:
-        errors.append(f"{file_path.name} does not contain any <user> elements")
-    
-    if errors:
-        return (False, errors)
-    
-    return (True, [])
-
-
 def validate_all_credentials(credentials_dir: Path) -> dict[str, Tuple[bool, List[str]]]:
     """
     Validate all credential files in the credentials directory.
@@ -180,9 +139,5 @@ def validate_all_credentials(credentials_dir: Path) -> dict[str, Tuple[bool, Lis
     # MQTT credentials
     mqtt_file = credentials_dir / "mqtt_credentials.json"
     results["mqtt"] = validate_mqtt_credentials(mqtt_file)
-    
-    # Tomcat users
-    tomcat_file = credentials_dir / "tomcat-users.xml"
-    results["tomcat"] = validate_tomcat_users(tomcat_file)
     
     return results

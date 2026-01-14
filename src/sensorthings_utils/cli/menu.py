@@ -252,13 +252,9 @@ def _manage_credentials_and_tokens(existing):
             elif choice == "4":
                 try:
                     if _setup_tomcat_users():
-                        # Re-validate after update
+                        # Re-check after update
                         existing = _check_existing_and_valid_credentials()
-                        validation_results = existing.pop('_validation_results', {})
-                        if validation_results.get('tomcat', (False, []))[0]:
-                            existing['tomcat'] = True
-                        else:
-                            console.print("[yellow]⚠️  Warning:[/yellow] File created but validation failed. Please check the file structure.")
+                        existing['tomcat'] = (CREDENTIALS_DIR / "tomcat-users.xml").exists()
                 except KeyboardInterrupt:
                     console.print("\n\n[yellow]Returning to credentials menu...[/yellow]")
             elif choice == "5":

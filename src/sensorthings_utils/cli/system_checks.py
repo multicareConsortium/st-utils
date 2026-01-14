@@ -87,7 +87,6 @@ def _check_existing_and_valid_credentials():
             'frost': (False, []),
             'postgres': (False, []),
             'mqtt': (False, []),
-            'tomcat': (False, []),
         }
     else:
         # Run full validation
@@ -97,7 +96,7 @@ def _check_existing_and_valid_credentials():
         'frost': (CREDENTIALS_DIR / "frost_credentials.json").exists() and validation_results['frost'][0],
         'postgres': (CREDENTIALS_DIR / "postgres_credentials.json").exists() and validation_results['postgres'][0],
         'mqtt': (CREDENTIALS_DIR / "mqtt_credentials.json").exists() and validation_results['mqtt'][0],
-        'tomcat': (CREDENTIALS_DIR / "tomcat-users.xml").exists() and validation_results['tomcat'][0],
+        'tomcat': (CREDENTIALS_DIR / "tomcat-users.xml").exists(),
     }
     
     # Store validation results for later use
