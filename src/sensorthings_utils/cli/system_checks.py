@@ -69,7 +69,6 @@ def _check_existing_and_valid_credentials():
             'postgres': (False, []),
             'mqtt': (False, []),
             'tomcat': (False, []),
-            'application': (False, []),
         }
     else:
         # Run full validation
@@ -80,7 +79,6 @@ def _check_existing_and_valid_credentials():
         'postgres': (CREDENTIALS_DIR / "postgres_credentials.json").exists() and validation_results['postgres'][0],
         'mqtt': (CREDENTIALS_DIR / "mqtt_credentials.json").exists() and validation_results['mqtt'][0],
         'tomcat': (CREDENTIALS_DIR / "tomcat-users.xml").exists() and validation_results['tomcat'][0],
-        'application': (CREDENTIALS_DIR / "application_credentials.json").exists() and validation_results['application'][0],
     }
     
     # Store validation results for later use
