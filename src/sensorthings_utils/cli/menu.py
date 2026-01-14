@@ -579,5 +579,29 @@ def _setup_credentials(args):
             console.print(Panel(error_text, border_style="yellow"))
             console.print("\nYou can fix these from the main menu.")
     
+    # Step 1.5: Prompt for Tomcat setup on first-time setup if not configured
+    if is_first_time:
+        tomcat_file = CREDENTIALS_DIR / "tomcat-users.xml"
+        # Check if tomcat file is empty (just default structure with no users)
+        is_tomcat_empty = False
+        if tomcat_file.exists():
+            try:
+                with open(tomcat_file, "r") as f:
+                    content = f.read()
+                    # Check if it's just the default empty structure (no <user> elements)
+                    if "<user " not in content and '<user username=' not in content:
+                        is_tomcat_empty = True
+            except Exception:
+                is_tomcat_empty = True
+        
+        if is_tomcat_empty or not tomcat_file.exists():
+            console.print("\n[bold cyan]Tomcat Webapp Authentication Setup[/bold cyan]")
+            console.print("[dim]Configure authentication for the web application (optional - leave empty for public access)[/dim]\n")
+            try:
+                if _setup_tomcat_users():
+                    existing['tomcat'] = (CREDENTIALS_DIR / "tomcat-users.xml").exists()
+            except KeyboardInterrupt:
+                console.print("\n[yellow]Skipping Tomcat setup. You can configure it later from the main menu.[/yellow]")
+    
     # Step 2: Show main menu
     _show_main_menu(existing)
