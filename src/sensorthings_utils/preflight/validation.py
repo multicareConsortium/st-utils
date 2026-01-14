@@ -181,10 +181,6 @@ def validate_all_credentials(credentials_dir: Path) -> dict[str, Tuple[bool, Lis
     mqtt_file = credentials_dir / "mqtt_credentials.json"
     results["mqtt"] = validate_mqtt_credentials(mqtt_file)
     
-    # Application credentials
-    app_file = credentials_dir / "application_credentials.json"
-    results["application"] = validate_application_credentials(app_file)
-    
     # Tomcat users
     tomcat_file = credentials_dir / "tomcat-users.xml"
     results["tomcat"] = validate_tomcat_users(tomcat_file)
