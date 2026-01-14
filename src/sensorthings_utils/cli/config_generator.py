@@ -17,12 +17,28 @@ console = Console()
 
 def _load_template(sensor_model: SupportedSensors) -> Dict[str, Any]:
     """Load template file for a sensor model."""
+    # Try direct path first (for backward compatibility)
     template_path = CONFIG_PATHS / f"template_{sensor_model.value}.yaml"
+    
+    # If not found, search recursively in subdirectories
     if not template_path.exists():
-        raise FileNotFoundError(
-            f"Template not found for {sensor_model.value}. "
-            f"Expected: {template_path}"
-        )
+        # Extract model prefix (e.g., "netatmo" from "netatmo.nws03")
+        model_prefix = sensor_model.value.split('.')[0]
+        # Try in subdirectory matching the model prefix
+        template_path = CONFIG_PATHS / model_prefix / f"template_{sensor_model.value}.yaml"
+        
+        # If still not found, search recursively for any template matching the pattern
+        if not template_path.exists():
+            pattern = f"template_{sensor_model.value}.yaml"
+            found_templates = list(CONFIG_PATHS.rglob(pattern))
+            if found_templates:
+                template_path = found_templates[0]
+            else:
+                raise FileNotFoundError(
+                    f"Template not found for {sensor_model.value}. "
+                    f"Searched in {CONFIG_PATHS} and subdirectories. "
+                    f"Expected pattern: template_{sensor_model.value}.yaml"
+                )
     
     with open(template_path, "r") as f:
         template = yaml.safe_load(f)

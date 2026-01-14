@@ -214,28 +214,27 @@ def _setup_tomcat_users():
     
     tomcat_file = CREDENTIALS_DIR / "tomcat-users.xml"
     
-    if users:
-        xml_content = '''<?xml version="1.0" encoding="UTF-8"?>
+    # Always create a valid XML file (empty if no users = public access)
+    xml_content = '''<?xml version="1.0" encoding="UTF-8"?>
 <tomcat-users xmlns="http://tomcat.apache.org/xml"
               xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
               xsi:schemaLocation="http://tomcat.apache.org/xml
               http://tomcat.apache.org/xml/tomcat-users.xsd"
               version="1.0">
 '''
+    if users:
         for user in users:
             xml_content += f'  <user username="{user["username"]}" password="{user["password"]}" roles="{user["roles"]}"/>\n'
-        xml_content += '</tomcat-users>\n'
-        
-        with open(tomcat_file, "w") as f:
-            f.write(xml_content)
+    # If no users, file will be empty (just root element) = public access
+    xml_content += '</tomcat-users>\n'
+    
+    with open(tomcat_file, "w") as f:
+        f.write(xml_content)
+    
+    if users:
         console.print(f"[green]✓ Created/Updated {tomcat_file}[/green]")
     else:
-        # No users provided - delete file to allow public access
-        if tomcat_file.exists():
-            tomcat_file.unlink()
-            console.print(f"[green]✓ Removed {tomcat_file}[/green] - application will be publicly accessible")
-        else:
-            console.print("[green]✓ No authentication file[/green] - application will be publicly accessible")
+        console.print(f"[green]✓ Created empty {tomcat_file}[/green] - application will be publicly accessible")
     
     return True
 

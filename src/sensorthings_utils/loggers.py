@@ -10,6 +10,7 @@ from .paths import (
 ST_UTILS_DEBUG = bool(os.getenv("ST_UTILS_DEBUG"))
 # LOGGER DEFINITIONS ###########################################################
 def setup_loggers() -> None:
+    LOGS_DIR.mkdir(exist_ok=True)
     main_logger = logging.getLogger("main")
     main_logger.setLevel(logging.INFO)
     main_logger.propagate = False
@@ -37,7 +38,7 @@ def setup_loggers() -> None:
     event_console.setFormatter(general_formatter)
     # files handlers-
     general_logfile = TimedRotatingFileHandler(
-        filename=ROOT_DIR / "logs" / "general.log",
+        filename= ROOT_DIR / "logs" / "general.log",
         when="midnight",
         backupCount=7,
         utc=True,

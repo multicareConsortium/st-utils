@@ -20,20 +20,11 @@ scratch.py
 # Env Files
 .env
 
-# Credential Files
-**/.credentials
-**/*netatmo.credentials
-**/*tts.credentials
-
 # Debug scripts
 debug*.py
 
 # Local docker compose
 docker-compose.override.yml
-
-# Sensorconfigs (but track templates)
-sensor_configs/*
-!sensor_configs/template*.yaml
 
 # Observations
 observations/*

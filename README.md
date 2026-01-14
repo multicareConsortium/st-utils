@@ -83,7 +83,6 @@ cd st-utils
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -e .
-# alternatively, if using uv: uv sync
 ```
 
 ### Step 2: Mandatory Internal Credentials

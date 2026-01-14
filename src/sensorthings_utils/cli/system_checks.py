@@ -47,17 +47,36 @@ def _check_postgres_persistent_volume():
         return False
 
 
+def _ensure_tomcat_users_file_exists():
+    """Ensure tomcat-users.xml exists with minimal valid structure if missing."""
+    tomcat_file = CREDENTIALS_DIR / "tomcat-users.xml"
+    if not tomcat_file.exists():
+        # Create minimal valid XML file (empty = public access)
+        minimal_xml = '''<?xml version="1.0" encoding="UTF-8"?>
+<tomcat-users xmlns="http://tomcat.apache.org/xml"
+              xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+              xsi:schemaLocation="http://tomcat.apache.org/xml
+              http://tomcat.apache.org/xml/tomcat-users.xsd"
+              version="1.0">
+</tomcat-users>
+'''
+        with open(tomcat_file, "w") as f:
+            f.write(minimal_xml)
+
+
 def _check_existing_and_valid_credentials():
     """Check which credentials already exist and validate their structure."""
     CREDENTIALS_DIR.mkdir(parents=True, exist_ok=True)
     TOKENS_DIR.mkdir(parents=True, exist_ok=True)
+    
+    # Ensure tomcat-users.xml exists (needed for Docker Compose mount)
+    _ensure_tomcat_users_file_exists()
     
     # Check if first-time setup (no mandatory files exist)
     mandatory_files = [
         CREDENTIALS_DIR / "frost_credentials.json",
         CREDENTIALS_DIR / "postgres_credentials.json",
         CREDENTIALS_DIR / "mqtt_credentials.json",
-        CREDENTIALS_DIR / "tomcat-users.xml",
     ]
     
     is_first_time = not any(f.exists() for f in mandatory_files)
@@ -105,11 +124,11 @@ def _check_valid_credentials(credential_file: Path) -> bool:
 
 def _get_missing_mandatory(existing):
     """Get list of missing mandatory credentials."""
-    mandatory = ['frost', 'postgres', 'mqtt', 'tomcat']
+    mandatory = ['frost', 'postgres', 'mqtt']
     return [cred for cred in mandatory if not existing.get(cred, False)]
 
 
 def _is_first_time_setup(existing):
     """Check if this is a first-time setup (no credentials exist)."""
-    mandatory = ['frost', 'postgres', 'mqtt', 'tomcat']
+    mandatory = ['frost', 'postgres', 'mqtt']
     return not any(existing.get(cred, False) for cred in mandatory)

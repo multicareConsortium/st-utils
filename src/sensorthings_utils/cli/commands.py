@@ -14,7 +14,7 @@ from rich import print as rprint
 
 # internal
 from .menu import _setup_credentials
-from ..paths import START_SCRIPT
+from ..paths import DEPLOY_DIR, START_SCRIPT
 # Create typer app and console
 app = typer.Typer(
     help="st-utils CLI - SensorThings Utilities",
@@ -80,11 +80,11 @@ def _push_available(
     ),
 ):
     """Start the STU instance."""
-    from sensorthings_utils.main import push_available
     
     console.print("[bold]Starting data stream to FROST server...[/bold]")
     result = subprocess.run(
             [START_SCRIPT], 
+            cwd=DEPLOY_DIR,
             shell=True,
             capture_output=True,
             text=True,
