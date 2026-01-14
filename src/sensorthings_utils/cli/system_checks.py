@@ -52,8 +52,28 @@ def _check_existing_and_valid_credentials():
     CREDENTIALS_DIR.mkdir(parents=True, exist_ok=True)
     TOKENS_DIR.mkdir(parents=True, exist_ok=True)
     
-    # Validate all credential files
-    validation_results = validate_all_credentials(CREDENTIALS_DIR)
+    # Check if first-time setup (no mandatory files exist)
+    mandatory_files = [
+        CREDENTIALS_DIR / "frost_credentials.json",
+        CREDENTIALS_DIR / "postgres_credentials.json",
+        CREDENTIALS_DIR / "mqtt_credentials.json",
+        CREDENTIALS_DIR / "tomcat-users.xml",
+    ]
+    
+    is_first_time = not any(f.exists() for f in mandatory_files)
+    
+    if is_first_time:
+        # Skip validation, just check existence
+        validation_results = {
+            'frost': (False, []),
+            'postgres': (False, []),
+            'mqtt': (False, []),
+            'tomcat': (False, []),
+            'application': (False, []),
+        }
+    else:
+        # Run full validation
+        validation_results = validate_all_credentials(CREDENTIALS_DIR)
     
     existing = {
         'frost': (CREDENTIALS_DIR / "frost_credentials.json").exists() and validation_results['frost'][0],
