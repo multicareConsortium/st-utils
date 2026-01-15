@@ -203,7 +203,7 @@ def _setup(
     tomcat: bool = typer.Option(False, "--tomcat", help="Setup Tomcat users (webapp authentication)."),
     token: bool = typer.Option(False, "--token", help="Setup a token file (freeform JSON)."),
 ):
-    """Interactive setup for credential files."""
+    """Interactive application, sensor and credentil manager."""
     # Create a simple args-like object for backward compatibility
     class Args:
         def __init__(self):
