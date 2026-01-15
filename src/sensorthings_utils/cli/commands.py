@@ -88,7 +88,6 @@ def _push_available(
             shell=True,
             capture_output=True,
             text=True,
-            timeout=5
         )
     if result.returncode != 0:
         console.print(f"Failed to start STU: {result.stderr}") # This is where your Docker error is hiding!
