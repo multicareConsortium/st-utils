@@ -14,7 +14,7 @@ from rich import print as rprint
 
 # internal
 from .menu import _setup_credentials
-from ..paths import DEPLOY_DIR, START_SCRIPT
+from ..paths import DEPLOY_DIR, START_SCRIPT, STOP_SCRIPT
 # Create typer app and console
 app = typer.Typer(
     help="st-utils CLI - SensorThings Utilities",
@@ -93,6 +93,23 @@ def _push_available(
         console.print(f"Failed to start STU: {result.stderr}") # This is where your Docker error is hiding!
     else:
         console.print("System starting and available at http://localhost:8080/st-utils")
+
+
+def _stop_instance():
+    """Stop the STU instance."""
+    
+    console.print("[bold]Stopping STU instance...[/bold]")
+    result = subprocess.run(
+            [STOP_SCRIPT], 
+            cwd=DEPLOY_DIR,
+            shell=True,
+            capture_output=True,
+            text=True,
+        )
+    if result.returncode != 0:
+        console.print(f"[red]Failed to stop STU:[/red] {result.stderr}")
+    else:
+        console.print("[green]✓ STU instance stopped successfully[/green]")
 
 
 def _generate_config(
@@ -203,6 +220,7 @@ def _setup(
 
 # Register commands
 app.command(name="start")(_push_available)
+app.command(name="stop")(_stop_instance)
 app.command(name="setup")(_setup)
 app.command(name="validate")(_validate)
 app.command(name="generate-config")(_generate_config)
