@@ -190,7 +190,8 @@ def _setup_tomcat_users():
         "[bold]Tomcat Users (Webapp Authentication)[/bold]",
         border_style="blue"
     ))
-    console.print("[dim]Leave empty to allow public access (no authentication required).[/dim]")
+    console.print("[yellow]⚠️  Note:[/yellow] [bold]An empty file makes the app public (no authentication required).[/bold]")
+    console.print("[dim]Leave username empty to skip adding users and allow public access.[/dim]")
     
     users = []
     

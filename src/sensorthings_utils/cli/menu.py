@@ -24,6 +24,7 @@ from .tokens import _setup_token_file, _manage_tokens
 from .applications import _get_application_status, _show_application_status, _add_application_to_config
 from .config_generator import generate_config_from_template
 from ..transformers.types import SupportedSensors
+from ..sensor_things.extensions import SensorConfig
 
 console = Console()
 
@@ -114,7 +115,7 @@ def _setup_sensor_configuration():
             border_style="green"
         ))
         
-        sensor_id = Prompt.ask("Sensor ID/Name (typically MAC address)", default="").strip()
+        sensor_id = Prompt.ask("Sensor MAC / DevEUI address:", default="").strip()
         if not sensor_id:
             console.print("[bold red]Error:[/bold red] Sensor ID is required")
             return
@@ -161,10 +162,51 @@ def _setup_sensor_configuration():
                 latitude=latitude,
             )
             console.print(f"\n[bold green]✓ Configuration generated successfully:[/bold green] {output_path}")
-            console.print("\n[bold]Next steps:[/bold]")
-            console.print(f"  1. Review the configuration file")
-            console.print(f"  2. Validate it using: [cyan]stu validate {output_path}[/cyan]")
-            Prompt.ask("\nPress Enter to continue", default="")
+            
+            # Interactive next steps menu
+            while True:
+                next_steps_table = Table(show_header=False, box=None, padding=(0, 2))
+                next_steps_table.add_row("[cyan][1][/cyan]", "Review the configuration file")
+                next_steps_table.add_row("[cyan][2][/cyan]", "Validate the configuration")
+                next_steps_table.add_row("[cyan][3][/cyan]", "Return to main menu")
+                
+                console.print(Panel.fit(
+                    next_steps_table,
+                    title="[bold]Next steps[/bold]",
+                    border_style="green"
+                ))
+                
+                next_choice = Prompt.ask("\nSelect an option", default="3", choices=["1", "2", "3"])
+                
+                if next_choice == "1":
+                    console.print(f"\n[dim]Configuration file location: {output_path}[/dim]")
+                    try:
+                        with open(output_path, "r") as f:
+                            content = f.read()
+                        console.print(Panel(content, title="Configuration File", border_style="blue"))
+                    except Exception as e:
+                        console.print(f"[red]Error reading file: {e}[/red]")
+                    Prompt.ask("\nPress Enter to continue", default="")
+                elif next_choice == "2":
+                    console.print(f"\n[bold]Validating configuration file...[/bold]\n")
+                    try:
+                        result, errors = SensorConfig(output_path).check_validity()
+                        if result:
+                            console.print(f"[bold green]✓ {output_path.name} is valid![/bold green]")
+                            for msg in errors:
+                                if msg and "valid" in msg.lower():
+                                    console.print(f"[green]{msg}[/green]")
+                        else:
+                            console.print(f"[bold red]❌ {output_path.name} has validation errors:[/bold red]")
+                            for error in errors:
+                                console.print(f"  [red]{error}[/red]")
+                    except Exception as e:
+                        console.print(f"[bold red]Error during validation:[/bold red] {e}")
+                        import traceback
+                        console.print_exception()
+                    Prompt.ask("\nPress Enter to continue", default="")
+                elif next_choice == "3":
+                    break
         except Exception as e:
             console.print(f"\n[bold red]Error generating configuration:[/bold red] {e}")
             import traceback
@@ -304,11 +346,11 @@ def _show_main_menu(existing):
             
             # Create menu table
             menu_table = Table(show_header=False, box=None, padding=(0, 2))
-            menu_table.add_row("[cyan][1][/cyan]", "Add sensor application")
-            menu_table.add_row("[cyan][2][/cyan]", "Manage existing credentials and tokens")
-            menu_table.add_row("[cyan][3][/cyan]", f"Manage configured applications{app_summary}")
-            menu_table.add_row("[cyan][4][/cyan]", "Setup a sensor configuration")
-            menu_table.add_row("[cyan][5][/cyan]", "Exit")
+            menu_table.add_row("[red][1][/red]", "Setup sensor application")
+            menu_table.add_row("[red][2][/red]", "Setup a sensor configuration")
+            menu_table.add_row("[red][3][/red]", f"Manage configured applications{app_summary}")
+            menu_table.add_row("[red][4][/red]", "Manage existing credentials and tokens")
+            menu_table.add_row("[red][5][/red]", "Exit")
             
             console.print(Panel.fit(
                 menu_table,
@@ -335,10 +377,7 @@ def _show_main_menu(existing):
                     console.print("\n\n[yellow]Returning to main menu...[/yellow]")
             elif choice == "2":
                 try:
-                    _manage_credentials_and_tokens(existing)
-                    # Refresh existing state after returning from management
-                    existing = _check_existing_and_valid_credentials()
-                    existing.pop('_validation_results', None)
+                    _setup_sensor_configuration()
                 except KeyboardInterrupt:
                     console.print("\n\n[yellow]Returning to main menu...[/yellow]")
             elif choice == "3":
@@ -349,7 +388,10 @@ def _show_main_menu(existing):
                     console.print("\n\n[yellow]Returning to main menu...[/yellow]")
             elif choice == "4":
                 try:
-                    _setup_sensor_configuration()
+                    _manage_credentials_and_tokens(existing)
+                    # Refresh existing state after returning from management
+                    existing = _check_existing_and_valid_credentials()
+                    existing.pop('_validation_results', None)
                 except KeyboardInterrupt:
                     console.print("\n\n[yellow]Returning to main menu...[/yellow]")
             elif choice == "5":
@@ -596,6 +638,7 @@ def _setup_credentials(args):
         
         if is_tomcat_empty or not tomcat_file.exists():
             console.print("\n[bold cyan]Tomcat Webapp Authentication Setup[/bold cyan]")
+            console.print("[yellow]⚠️  Note:[/yellow] [bold]An empty file makes the app public (no authentication required).[/bold]")
             console.print("[dim]Configure authentication for the web application (optional - leave empty for public access)[/dim]\n")
             try:
                 if _setup_tomcat_users():

@@ -96,14 +96,9 @@ $ stu setup
 Upon the first launch of the CLI, you will be guided through setting up mandatory internal credentials. The system uses default usernames (`sta-admin`) which you can accept or override:
 
 - **FROST**: Credentials for the FROST server (needed for data access and writing)
-  - Default username: `sta-admin`
 - **PostgreSQL**: Credentials for the backend PostgreSQL database
-  - Default username: `sta-admin`
 - **MQTT**: Internal Mosquitto users (at least one user is required)
-  - Default username: `sta-admin` (for the first user)
 - **Tomcat**: Web application authentication (optional)
-  - Leave empty to allow public access (no authentication required)
-  - Default username: `sta-admin` (if creating users)
 
 All credentials are stored in the `deploy/secrets/credentials` directory.
 

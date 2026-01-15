@@ -11,7 +11,16 @@ if [ -f "/run/secrets/frost_credentials" ]; then
     export auth_db_password=$(awk -F'"' '/"frost_password"/ {print $4}' /run/secrets/frost_credentials)
 fi
 
-# tomcat-users.xml is mounted directly from secrets, no generation needed
+# Handle tomcat-users.xml for public access
+# If the mounted file is empty or only contains the root element (no users),
+# remove it to allow public access
+if [ -f "/usr/local/tomcat/conf/tomcat-users.xml" ]; then
+    # Check if file is empty or only has root element (no <user> tags)
+    if ! grep -q '<user ' /usr/local/tomcat/conf/tomcat-users.xml; then
+        echo "No users found in tomcat-users.xml, removing file for public access"
+        rm -f /usr/local/tomcat/conf/tomcat-users.xml
+    fi
+fi
 
 # Start Tomcat
 exec /usr/local/tomcat/bin/catalina.sh run
