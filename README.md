@@ -2,19 +2,27 @@
 
 ## What is it?
 
-(The application currently supports a limited number of IoT applications and
-sensors: this list is expected to grow.) 
 
 **st-utils** (SensorThings Utilities) is a deployment and management layer for
 Fraunhofer's [FROST Server](https://github.com/FraunhoferIOSB/FROST-Server). It
 makes deploying [OGC SensorThings API
 (STA)](https://www.ogc.org/publications/standard/sensorthings/) compliant sensor
-IoT applications easy! The following are its features:
+IoT applications easy! OGC is the Open Geospatial Consortium and develops
+geospatial standards that make sharing geospatial information interoperable.
+
+Observations from sensors are used for many things, and having an interoperable
+data model and API like STA makes producing data products a walk in the park.
+
+This application is built in the spirit of that interoperability. The following
+are its core features:
 
 - Add, delete and manage IoT applications through an intuitive CLI,
 - Keep your sensors STA compliant - the app takes care of transformation and
   management under the hood,
 - Spin up a batteries-included web-based Sensor Dashboard,
+
+The application currently supports a limited number of IoT applications and
+sensors: this list is expected to grow. 
 
 ```mermaid
 flowchart LR
@@ -34,10 +42,9 @@ flowchart LR
 
 The system requirements are fairly minimal:
 
-- `Docker` and `Docker Compose`
+- `docker` and `docker compose`
 - `git`
-- `Python >=3.9`
-- Internet access
+- `python >=3.9`
 
 ## Deployment Requirements
 
@@ -56,9 +63,10 @@ st-utils supports ingestion from:
 
 ### Sensor Specifications and Architecture
 
-The application will help you set up the STA data mode. However, it assumes you
-have enough information about the sensor *and what it is observing* to be able
-to specify enough information to populate the SensorThings datamodel.
+The application will do the heavy lifting in helping you set up your existing
+sensors to match the STA data model. It does however assume you have enough
+information about *what* the sensor is observing to be able to specify the
+*Thing* and *Location* components of the STA datamodel:
 
 ![](docs/readme_sensorThingsDataModel.png)
 
@@ -119,7 +127,8 @@ and MQTT applications:
 ![](./docs/tapes/application.gif)
 
 Application are controlled by the `yaml` found in
-`deploy/application_configs.yaml`
+`deploy/application_configs.yaml`. You should not need to manually touch this
+file.
 
 ### Step 4: Configure Sensor Configurations
 
@@ -151,13 +160,14 @@ mode and have set up Tomcat users, then pass the --private flag: `stu start
 
 The application should be connecting, receiving, parsing, transforming and
 storing your date. You can head over to `http://localhost:8080/st-utils` to
-check this out and explore your data visually.
+check this out and explore your data visually and download it as a CSV. The
+back-end FROST server is available at `http://localhost:8080/FROST-Server`. 
 
 ![](./docs/imgs/dashboard.jpg)
 
 ![](./docs/imgs/graph.jpg)
 
-You can also check out the health monitor to see how your system is performing.k
+You can also check out the health monitor to see how your system is performing.
 
 ![](./docs/imgs/health.jpg)
 
