@@ -72,6 +72,9 @@ def _validate(
 
 
 def _push_available(
+    private: bool = typer.Option(
+        False, "--private", help="Start with authentication (requires tomcat-users.xml)."
+    ),
     frost_endpoint: Optional[str] = typer.Option(
         None, "--frost-endpoint", help="Change default FROST server URL."
     ),
@@ -81,18 +84,21 @@ def _push_available(
 ):
     """Start the STU instance."""
     
-    console.print("[bold]Starting data stream to FROST server...[/bold]")
+    mode = "private" if private else "public"
+    console.print(f"[bold]Starting STU instance in {mode} mode...[/bold]")
     result = subprocess.run(
-            [START_SCRIPT], 
+            [str(START_SCRIPT), mode], 
             cwd=DEPLOY_DIR,
-            shell=True,
             capture_output=True,
             text=True,
         )
     if result.returncode != 0:
-        console.print(f"Failed to start STU: {result.stderr}") # This is where your Docker error is hiding!
+        console.print(f"Failed to start STU: {result.stderr}")
     else:
-        console.print("System starting and available at http://localhost:8080/st-utils")
+        if private:
+            console.print("System starting with authentication at http://localhost:8080/st-utils")
+        else:
+            console.print("System starting (public access) at http://localhost:8080/st-utils")
 
 
 def _stop_instance():

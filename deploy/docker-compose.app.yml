@@ -2,6 +2,7 @@
 # NOT FOR PRODUCTION ##################################
 # Must be merged with the base compose.               #
 # - Adds the python application                       #
+# - Private mode: mounts tomcat-users.xml and web.xml #
 # #####################################################
 name: st-utils
 
@@ -12,6 +13,7 @@ services:
       - python-app_logs:/usr/local/tomcat/webapps/st-utils/logs:ro
       - ./init-webapp-auth.sh:/init-webapp-auth.sh
       - ./secrets/credentials/tomcat-users.xml:/usr/local/tomcat/conf/tomcat-users.xml
+      - ./webapp-config/web.xml:/usr/local/tomcat/webapps/st-utils/WEB-INF/web.xml
     entrypoint: ["/init-webapp-auth.sh"]
 
   python-app:
