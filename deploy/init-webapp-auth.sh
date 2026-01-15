@@ -13,12 +13,13 @@ fi
 
 # Handle tomcat-users.xml for public access
 # If the mounted file is empty or only contains the root element (no users),
-# remove it to allow public access
+# Tomcat will treat it as public access (no authentication required)
 if [ -f "/usr/local/tomcat/conf/tomcat-users.xml" ]; then
     # Check if file is empty or only has root element (no <user> tags)
     if ! grep -q '<user ' /usr/local/tomcat/conf/tomcat-users.xml; then
-        echo "No users found in tomcat-users.xml, removing file for public access"
-        rm -f /usr/local/tomcat/conf/tomcat-users.xml
+        echo "No users found in tomcat-users.xml - application will be publicly accessible"
+        # Note: We cannot remove the file as it's a mounted volume, but Tomcat
+        # will treat an empty/minimal tomcat-users.xml as no authentication
     fi
 fi
 
