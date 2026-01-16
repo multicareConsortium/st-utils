@@ -1,7 +1,7 @@
 [project]
 name = "st-utils"
-version = "0.2.0"
-description = "Infrastructure and utilities for working with heterogeneous hazard-centric sensor data."
+version = "0.3.0"
+description = "Management and representation layer for Fraunhofer FROST Server."
 readme = "README.md"
 requires-python = ">=3.9"
 dependencies = [
