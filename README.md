@@ -159,7 +159,7 @@ mode and have set up Tomcat users, then pass the --private flag: `stu start
 --public`.
 
 The application should be connecting, receiving, parsing, transforming and
-storing your date. You can head over to `http://localhost:8080/st-utils` to
+storing your data. You can head over to `http://localhost:8080/st-utils` to
 check this out and explore your data visually and download it as a CSV. The
 back-end FROST server is available at `http://localhost:8080/FROST-Server`. 
 
