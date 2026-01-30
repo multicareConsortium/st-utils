@@ -7,26 +7,18 @@ wheels/
 *.egg-info
 # Python files
 scratch.py
-
 # Virtual environments
 .venv
-
-# MacOS
+# OS Artefacts
 .DS_Store
-
+.thumbs_db
 # Jupyter
 *.ipynb
-
 # Env Files
 .env
-
-# Debug scripts
-debug*.py
-
 # Local docker compose
 docker-compose.override.yml
-
-# Observations
-observations/*
-
+# Observations and Data Dumps
+*.csv
+# Logs
 *logs/
