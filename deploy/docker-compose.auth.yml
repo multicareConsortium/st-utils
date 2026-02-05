@@ -1,0 +1,32 @@
+# docker-compose.auth.yml
+# NOT FOR PRODUCTION ##################################
+# Must be merged with the base compose.               #
+# - Adds authentication to FROST.                     #
+# #####################################################
+name: st-utils-appless-auth
+
+services:
+  web:
+    volumes:
+      - ./init-frost.sh:/init-auth-frost.sh
+    secrets:
+      - frost_credentials
+    environment:
+      - auth_provider=de.fraunhofer.iosb.ilt.frostserver.auth.basic.BasicAuthProvider
+      - auth_db_driver=org.postgresql.Driver
+      - auth_db_url=jdbc:postgresql://database:5432/sensorthings
+      - auth_autoUpdateDatabase=true
+      - auth_allowAnonymousRead=true
+    entrypoint: ["/init-auth-frost.sh"]
+
+  database:
+    secrets:
+      - frost_credentials 
+    volumes:
+      - ./init-auth-db.sh:/init-auth-db.sh
+    entrypoint: ["/init-auth-db.sh"] 
+
+secrets:
+  frost_credentials:
+    file: ./secrets/credentials/frost_credentials.json
+

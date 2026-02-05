@@ -1,9 +1,9 @@
 [project]
 name = "st-utils"
-version = "0.2.0"
-description = "Infrastructure and utilities for working with heterogeneous hazard-centric sensor data."
+version = "0.3.0"
+description = "Management and representation layer for Fraunhofer FROST Server."
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.9"
 dependencies = [
     "lnetatmo>=4.2.0",
     "paho-mqtt>=2.1.0",
@@ -11,6 +11,8 @@ dependencies = [
     "python-dotenv>=1.0.1",
     "pyyaml>=6.0.2",
     "requests>=2.32.5",
+    "typer>=0.12.0",
+    "rich>=13.7.0",
 ]
 
 [project.scripts]
@@ -25,7 +27,6 @@ build-backend = "setuptools.build_meta"
 
 [dependency-groups]
 dev = [
-    "ipykernel>=6.29.5",
     "pytest>=8.3.4",
 ]
 
@@ -39,6 +40,7 @@ filterwarnings = [
     "ignore:The 'WelcomeData' class was renamed 'HomeData':DeprecationWarning"
 ]
 markers = [
-    "slow:",
-    "real: makes calls to real resources (APIs, servers, databases, etc.)"
+    "slow: tests which take long",
+    "real: makes calls to real resources (APIs, servers, databases, etc.)",
+    "online: tests which require the test broker to be online",
 ]

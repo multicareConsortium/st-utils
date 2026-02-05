@@ -17,12 +17,14 @@ from sensorthings_utils.config import (
     FROST_ENDPOINT_DEFAULT,
     FROST_CREDENTIALS,
 )
+from sensorthings_utils.exceptions import FrostUploadFailure
 from sensorthings_utils.sensor_things.core import (
     Datastream,
     SensorThingsObject,
     Observation,
 )
-from sensorthings_utils.monitor import network_monitor
+from sensorthings_utils.monitor import netmon
+from sensorthings_utils.transformers.types import ObservedProperties, SensorID
 
 # typing
 if TYPE_CHECKING:
@@ -31,6 +33,7 @@ if TYPE_CHECKING:
 UrlStr = str
 
 logger = logging.getLogger(__name__)
+debug_logger = logging.getLogger("debug")
 
 ENTITY_ENDPOINTS: Dict[str, str] = {
     "Sensor": "/Sensors",
@@ -145,15 +148,13 @@ def filter_query(
         with request.urlopen(get_request) as response:
             response = json.loads(response.read())
             return response
-    except error.HTTPError as e:
-        logger.warning(f"{e} {e.read()}")
-        return {}
     except error.URLError as e:
         logger.critical(
-            f"FROST connection refused, pointing to "
-            + f" {frost_endpoint}. Is server up and listening?"
+            "FROST connection refused, pointing to "
+            f"{frost_endpoint}. Is server up and listening? "
+            f"{get_request.full_url=}"
         )
-        return {}
+        raise error.URLError(e)
 
 
 def initial_setup(sensor_arrangement: "SensorArrangement") -> str:
@@ -167,22 +168,24 @@ def initial_setup(sensor_arrangement: "SensorArrangement") -> str:
     """
 
     _check_frost_connection()
+    debug_logger.debug(sensor_arrangement.get_entities("Thing"))
     for thing in sensor_arrangement.get_entities("Thing"):
         make_thing = make_frost_object(thing)
+        debug_logger.debug(make_thing)
         if not make_thing:
             break
         iot_url = make_thing["locations_url"]
         # lookup linked locations of the thing and make them:
         for loc in thing.iot_links["locations"]:
             # pass URL of newly generated Thing's Locations to the maker:
-            make_frost_object(loc, iot_url)
+            debug_logger.debug(make_frost_object(loc, iot_url))
     # Make Sensors, which are associated only with Datastreams, which are linked later
     for sen in sensor_arrangement.get_entities("Sensor"):
-        make_frost_object(sen)
+        debug_logger.debug(make_frost_object(sen))
         sensor_model = sen.name
     # Make ObservedProperties, also linked later with a Datastream
     for op in sensor_arrangement.get_entities("ObservedProperty"):
-        make_frost_object(op)
+        debug_logger.debug(make_frost_object(op))
     # Make Datastreams, linked with a one Sensor, one ObservedProperty and one Thing
     for ds in sensor_arrangement.get_entities("Datastream"):
         # Lookup the names's of the relevant Sensor, ObservedProperty and Thing:
@@ -190,6 +193,7 @@ def initial_setup(sensor_arrangement: "SensorArrangement") -> str:
         oprop_name = ds.iot_links["observedProperties"][0].name
         thing_name = ds.iot_links["things"][0].name
         # Query server and lookup ids:
+        debug_logger.info(locals())
         sen_id = filter_query(
             entity="/Sensors",
             filter_string=f"name eq '{sen_name}'",
@@ -268,21 +272,11 @@ def make_frost_object(
                 "Location"
             )  # "Location" does not refer to a SensorThings Location
             logger.info(f"New {entity.st_type} created at {new_object_url}")
-            if entity.st_type == "Observation":
-                sensor_name = observation_to_sensor_trace(new_object_url)
-                if sensor_name:
-                    network_monitor.add_named_count(
-                        "push_success", application_name + ":" + sensor_name, 1
-                    )
-                    network_monitor.add_named_time(
-                        "last_push_time",
-                        application_name + ":" + sensor_name,
-                        time.time(),
-                    )
     except error.HTTPError as e:
-        logger.warning(f"{e} {e.read()}")
-        network_monitor.add_named_count("push_fail", application_name, 1)
-        return {}
+        if isinstance(entity, Observation):
+            pass
+        else:
+            raise e
 
     if CONTAINER_ENVIRONMENT:
         new_object_url = new_object_url.replace("localhost", "web")
@@ -332,7 +326,7 @@ def make_frost_datastream(
 
 def find_datastream_url(
     sensor_name: str,
-    datastream_name: str,
+    datastream_name: ObservedProperties,
     container_environment: bool,
 ) -> UrlStr:
     """Query the FROST server, find the push URL associated with the passed sensor_name and datastream name."""
@@ -372,13 +366,13 @@ def observation_to_sensor_trace(url: str, return_url: bool = False) -> str | Non
     """Return name or URL of sensor which generated an observation."""
     if not re.search(r"/Observations\(\d+\)$", url):
         logger.warning(
-            f"Did not find a datastream associated with this observation."
+            "Did not find a datastream associated with this observation."
             + f"Check the URL passed: {url}"
         )
         return None
     if CONTAINER_ENVIRONMENT:
         url = url.replace("localhost", "web")
-    
+
     try:
         with request.urlopen(url) as response:
             datastream_url = json.loads(response.read())[
@@ -386,7 +380,7 @@ def observation_to_sensor_trace(url: str, return_url: bool = False) -> str | Non
             ]
         if CONTAINER_ENVIRONMENT:
             datastream_url = datastream_url.replace("localhost", "web")
-        
+
         with request.urlopen(datastream_url) as response:
             sensor_url = json.loads(response.read())["Sensor@iot.navigationLink"]
             if CONTAINER_ENVIRONMENT:
@@ -398,6 +392,26 @@ def observation_to_sensor_trace(url: str, return_url: bool = False) -> str | Non
             return json.loads(response.read())["name"]
 
     except error.URLError as e:
-        logger.warning(f"Unable to map sensor to created observation. {url=} URL Error: {e}")
+        logger.warning(
+            f"Unable to map sensor to created observation. {url=} URL Error: {e}"
+        )
     except KeyError as e:
         logger.warning(f"Missing expected key: {e}")
+
+
+def frost_observation_upload(
+    sensor_name: SensorID,
+    observation_set: Tuple[Observation, ObservedProperties],
+    app_name: str | None = None,
+) -> None:
+    """Upload an observation set to the FROST server."""
+    observation, datastream_name = observation_set
+    push_link = find_datastream_url(sensor_name, datastream_name, CONTAINER_ENVIRONMENT)
+    try:
+        make_frost_object(observation, push_link, app_name)
+        netmon.add_named_count("push_success", sensor_name, 1)
+        netmon.add_named_time("last_push_time", sensor_name, time.time())
+    except Exception as e:
+        netmon.add_named_count("push_fail", sensor_name, 1)
+        raise FrostUploadFailure(f"Unable to upload payload: {e}")
+    return None

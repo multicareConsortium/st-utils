@@ -1,0 +1,45 @@
+# docker-compose.app.yml
+# NOT FOR PRODUCTION ##################################
+# Must be merged with the base compose.               #
+# - Adds the python application                       #
+# - Private mode: mounts tomcat-users.xml and web.xml #
+# #####################################################
+name: st-utils
+
+services:
+  web:
+    volumes:
+      - ../web/st-utils:/usr/local/tomcat/webapps/st-utils
+      - python-app_logs:/usr/local/tomcat/webapps/st-utils/logs:ro
+      - ./init-webapp-auth.sh:/init-webapp-auth.sh
+      - ./secrets/credentials/tomcat-users.xml:/usr/local/tomcat/conf/tomcat-users.xml
+      - ./webapp-config/web.xml:/usr/local/tomcat/webapps/st-utils/WEB-INF/web.xml
+    entrypoint: ["/init-webapp-auth.sh"]
+
+  python-app:
+    secrets:
+      - application_credentials
+      - frost_credentials # from auth.yml
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    depends_on:
+      - web
+      - database
+      - mosquitto
+    environment:
+      - FROST_ENDPOINT=http://web:8080/FROST-Server/v1.1
+      - CONTAINER_ENVIRONMENT=true
+    volumes:
+      - python-app_tokens:/app/deploy/secrets/tokens
+      - python-app_logs:/app/logs
+    command: ["uv", "run", "/app/src/sensorthings_utils/main.py"]
+    restart: unless-stopped
+
+volumes:
+  python-app_tokens:
+  python-app_logs:
+
+secrets:
+  application_credentials:
+    file: ./secrets/credentials/application_credentials.json

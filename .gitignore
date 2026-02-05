@@ -7,34 +7,18 @@ wheels/
 *.egg-info
 # Python files
 scratch.py
-
 # Virtual environments
 .venv
-
-# MacOS
+# OS Artefacts
 .DS_Store
-
+.thumbs_db
 # Jupyter
 *.ipynb
-
 # Env Files
 .env
-
-# Credential Files
-**/.credentials
-**/*netatmo.credentials
-**/*tts.credentials
-
-# Debug scripts
-debug*.py
-
 # Local docker compose
 docker-compose.override.yml
-
-# Sensorconfigs
-sensor_configs/*
-
-# Observations
-observations/*
-
+# Observations and Data Dumps
+*.csv
+# Logs
 *logs/

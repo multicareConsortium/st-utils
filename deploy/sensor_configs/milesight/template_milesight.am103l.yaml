@@ -1,0 +1,175 @@
+# TEMPLATE: Milesight AM103L
+# This template contains all standard datastreams and observedProperties for Milesight AM103L sensors.
+# Use this template to generate sensor configuration files - you only need to provide:
+# - Sensor ID/name (device MAC address)
+# - Thing name and description
+# - Location name, description, and coordinates
+#
+# Generate config using: stu generate-config milesight.am103l
+
+sensors:
+  milesight.am103l:
+    name: <SENSOR_ID>  # Replace with device MAC address (e.g., 24E124725F068087)
+    description: Milesight AM103L-LoRaWAN Indoor Air Quality Sensor (3 in 1)
+    metadata: https://resource.milesight.com/milesight/iot/document/am30x-datasheet-en.pdf
+    encodingType: application/pdf
+    properties:
+      wireless_transmission:
+        technology: LoRaWAN
+        frequency: CN470/RU864/IN865/EU868/US915/AU915/KR920/AS923-1&2&3&4
+        tx_power: 16dBm(868MHz)/22dBm(915MHz)/19dBm(470MHz)
+        sensitivity: 137dBm @300bps
+        work_mode: OTAA/ABP Class A
+      sensors:
+        temperature:
+          operating_principle: Digital CMOSens technology (MEMS)
+          range: -20°C~60°C
+          accuracy: ± 0.2°C
+          resolution: 0.1°C
+        humidity:
+          operating_principle: Digital CMOSens technology (MEMS)
+          range: 0% ~ 100% RH
+          accuracy: ± 2% RH
+          resolution: 0.5% RH
+        carbon_dioxide:
+          operating_princple: Nondispersive Infrared (NDIR)
+          range: 400 ~ 500 ppm
+          accuracy: ± (30 ppm + 3% of reading) at (0°C~ 50°C, 0% to 85%RH)
+          resolution: 1 ppm
+    iot_links:
+      datastreams: &datastreams
+        - battery_level
+        - co2
+        - humidity
+        - temperature_indoor
+
+things:
+  <THING_NAME>:  # Replace with thing name
+    name: <THING_NAME>  # Must match line above
+    description: <THING_DESCRIPTION>  # Replace with description
+    properties: null  # Replace with dict or null as needed
+    iot_links:
+      datastreams: *datastreams
+      locations:
+        - <LOCATION_NAME>  # Replace with location name
+
+locations:
+  <LOCATION_NAME>:  # Replace with location name
+    name: <LOCATION_NAME>  # Must match line above
+    description: <LOCATION_DESCRIPTION>  # Replace with description
+    properties: null  # Replace with dict or null as needed
+    encodingType: application/geo+json
+    location:
+      type: Point  # Replace with Point, Polygon, etc. as needed
+      coordinates: [<LONGITUDE>, <LATITUDE>]  # Replace with [longitude, latitude]
+    iot_links:
+      things:
+        - <THING_NAME>  # Replace with thing name
+
+datastreams:
+  temperature_indoor:
+    name: temperature_indoor
+    description: This datastream is measuring the internal room temperature.
+    observationType: instant
+    unitOfMeasurement: &temperature
+      name: degree Celsius
+      symbol: °C
+      definition: https://unitsofmeasure.org/ucum#para-30
+    observedArea: &observedArea
+      type: Polygon
+      coordinates: null
+    phenomenon_time: null
+    result_time: null
+    properties: null
+    iot_links:
+      observedProperties:
+        - temperature_indoor
+      sensors:
+        - <SENSOR_ID>  # Replace with sensor name
+      things:
+        - <THING_NAME>  # Replace with thing name
+
+  humidity:
+    name: humidity
+    description: Datastream for observations of humidity levels.
+    observationType: instant
+    unitOfMeasurement:
+      name: percent
+      symbol: "%"
+      definition: https://unitsofmeasure.org/ucum#para-29
+    observedArea: *observedArea
+    phenomenon_time: null
+    result_time: null
+    properties: null
+    iot_links:
+      observedProperties:
+        - internal_humidity
+      sensors:
+        - <SENSOR_ID>  # Replace with sensor name
+      things:
+        - <THING_NAME>  # Replace with thing name
+
+  co2:
+    name: co2
+    description: Datastream for observations of CO2 levels.
+    observationType: instant
+    unitOfMeasurement:
+      name: parts per million
+      symbol: ppm
+      definition: https://unitsofmeasure.org/ucum#para-29
+    observedArea: *observedArea
+    phenomenon_time: null
+    result_time: null
+    properties: null
+    iot_links:
+      observedProperties:
+        - co2_levels
+      sensors:
+        - <SENSOR_ID>  # Replace with sensor name
+      things:
+        - <THING_NAME>  # Replace with thing name
+
+  battery_level:
+    name: battery_level
+    description: Battery level of the sensor.
+    observationType: instant
+    unitOfMeasurement: &percentage
+      name: percentage
+      symbol: percent
+      definition: ...
+    observedArea: *observedArea
+    phenomenon_time: null
+    result_time: null
+    properties: null
+    iot_links:
+      observedProperties:
+        - battery_level
+      sensors:
+        - <SENSOR_ID>  # Replace with sensor name
+      things:
+        - <THING_NAME>  # Replace with thing name
+
+observedProperties:
+  temperature_indoor:
+    name: temperature_indoor
+    definition: https://dbpedia.org/page/Temperature
+    description: The temperature where the indoor module is placed.
+    properties: null
+
+  internal_humidity:
+    name: internal_humidity
+    definition: https://en.wikipedia.org/wiki/Humidity
+    description: The internal humidity levels wherever the indoor sensor is placed.
+    properties: null
+
+  co2_levels:
+    name: co2_levels
+    definition: https://en.wikipedia.org/wiki/Indoor_air_quality#Carbon_dioxide
+    description: The CO2 levels wherever the indoor module is placed.
+    properties: null
+
+  battery_level:
+    name: battery_level
+    definition: ...
+    description: ...
+    properties: null
